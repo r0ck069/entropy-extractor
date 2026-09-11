@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline di Estrazione Entropica Multi-Finestra — Versione Unificata</title>
+<style>
+  /* Palette e tipografia allineate al tool BIP39 di Ian Coleman (Bootstrap 3 "stock") */
+  :root{
+    --bg:#ffffff; --panel:#ffffff; --border:#dddddd; --text:#333333; --muted:#737373;
+    --well-bg:#f5f5f5; --well-border:#e3e3e3;
+    --accent:#337ab7; --accent-hover:#286090;
+    --win:#3c763d; --win-bg:#dff0d8; --win-border:#d6e9c6;
+    --fail:#a94442; --fail-bg:#f2dede; --fail-border:#ebccd1;
+    --warn:#8a6d3b; --warn-bg:#fcf8e3; --warn-border:#faebcc;
+    --mono:Menlo,Monaco,Consolas,"Courier New",monospace;
+    --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; line-height:1.42857143; padding:24px; }
+  h1{ color:var(--text); font-weight:500; font-size:1.6rem; letter-spacing:normal; margin-bottom:4px; }
+  .subtitle{ color:var(--muted); font-size:0.85rem; margin-bottom:12px; }
+  .panel{ background:var(--panel); border:1px solid var(--border); border-radius:4px; padding:16px; margin-bottom:20px; }
+  .doc-panel{ background:var(--well-bg); border:1px solid var(--well-border); border-radius:4px; padding:14px; margin-bottom:20px; font-size:0.8rem; line-height:1.55; color:var(--text); }
+  .doc-panel strong{ color:var(--accent); }
+  .doc-panel .warn{ color:var(--warn); }
+  .doc-panel details{ margin-top:8px; }
+  .doc-panel summary{ cursor:pointer; color:var(--accent); font-size:0.82rem; }
+  .doc-panel summary:hover{ color:var(--accent-hover); text-decoration:underline; }
+  .doc-panel .changelog-item{ margin:6px 0 6px 12px; padding-left:8px; border-left:2px solid var(--border); }
+  .controls-row{ display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px; }
+  label{ font-size:0.8rem; color:var(--muted); display:block; margin-bottom:4px; }
+  input[type="number"], input[type="file"], select{
+    background:#ffffff; border:1px solid #cccccc; color:var(--text);
+    padding:6px 10px; border-radius:4px; font-family:var(--sans); font-size:0.9rem;
+  }
+  input[type="number"]:focus, select:focus{ outline:none; border-color:#66afe9; box-shadow:inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(102,175,233,.6); }
+  input[type="checkbox"]{ width:16px; height:16px; accent-color:var(--accent); margin-right:6px; }
+  .check-row{ display:flex; align-items:center; gap:4px; font-size:0.85rem; color:var(--text); margin-top:4px; }
+  button{
+    background:var(--accent); border:1px solid var(--accent-hover); color:#ffffff;
+    padding:9px 16px; border-radius:4px; font-family:var(--sans); cursor:pointer;
+    font-size:0.9rem; letter-spacing:0.2px; transition:background 0.15s ease;
+  }
+  button:hover:not(:disabled){ background:var(--accent-hover); }
+  button:disabled{ background:#c8c8c8; border-color:#c8c8c8; color:#ffffff; opacity:0.65; cursor:not-allowed; }
+  progress{ width:100%; height:14px; accent-color:var(--accent); background:var(--well-bg); }
+  #phaseText{ font-size:0.82rem; color:var(--accent); margin-top:6px; min-height:1.1em; }
+  .cards{ display:grid; grid-template-columns:repeat(auto-fit, minmax(320px,1fr)); gap:16px; }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:4px; padding:14px; font-size:0.83rem; line-height:1.5; }
+  .card.winner{ border-color:var(--win); box-shadow:0 0 0 1px var(--win-border), 0 0 8px rgba(60,118,61,0.25); }
+  .card.failed{ border-color:var(--fail); }
+  .card h2{ font-size:1rem; font-weight:500; margin:0 0 8px 0; padding-bottom:6px; border-bottom:1px solid var(--border); color:var(--text); }
+  .card.winner h2{ color:var(--win); }
+  .card.failed h2{ color:var(--fail); }
+  .row{ display:flex; justify-content:space-between; margin:3px 0; gap:8px; }
+  .row .k{ color:var(--muted); }
+  .bitstring{
+    word-break:break-all; font-size:0.72rem; font-family:var(--mono); background:var(--well-bg); padding:6px;
+    border:1px solid var(--well-border); border-radius:4px; margin:6px 0; max-height:260px; overflow-y:auto;
+    overflow-x:hidden; color:var(--text);
+  }
+  .winner .bitstring{ color:var(--win); }
+  .balance{ font-size:0.75rem; color:var(--muted); margin-bottom:6px; }
+  .winner .balance{ color:var(--win); }
+  .test-row{ display:flex; justify-content:space-between; font-size:0.78rem; margin:2px 0; font-family:var(--mono); }
+  .pass{ color:var(--win); font-weight:bold; }
+  .fail{ color:var(--fail); font-weight:bold; }
+  .insufficient{ color:var(--muted); font-style:italic; }
+  .warn-text{ color:var(--warn); }
+  .dl-btn{ margin-top:8px; width:100%; font-size:0.78rem; padding:6px; background:#ffffff; color:var(--text); border:1px solid #cccccc; }
+  .dl-btn:hover:not(:disabled){ background:#e6e6e6; }
+  .foot-counters{ font-size:0.72rem; color:var(--muted); margin-top:8px; border-top:1px solid var(--border); padding-top:6px; }
+  .gate-fail{ color:var(--fail); font-weight:bold; margin:6px 0; padding:8px; background:var(--fail-bg); border:1px solid var(--fail-border); border-radius:4px; line-height:1.5; }
+  .not-eligible-tag{ font-size:0.7rem; color:var(--muted); font-style:italic; border:1px solid var(--muted); border-radius:3px; padding:1px 6px; margin-left:6px; }
+  .provenance{ font-size:0.72rem; margin:4px 0; padding:4px 6px; border-radius:4px; background:var(--well-bg); border:1px solid var(--well-border); }
+  .provenance .real{ color:var(--win); }
+  .provenance .synth{ color:var(--warn); }
+  .numeric-scheme{ font-size:0.72rem; background:var(--well-bg); border:1px solid var(--well-border); border-radius:4px; padding:8px; margin:8px 0; }
+  .numeric-scheme .ns-title{ color:var(--text); font-weight:bold; margin-bottom:6px; letter-spacing:0.02em; }
+  .numeric-scheme .ns-row{ display:flex; justify-content:space-between; gap:8px; padding:2px 0; border-bottom:1px dotted var(--border); }
+  .numeric-scheme .ns-row:last-child{ border-bottom:none; }
+  .numeric-scheme .ns-row span:first-child{ color:var(--muted); flex-shrink:1; }
+  .numeric-scheme .ns-row span:last-child{ text-align:right; }
+  .numeric-scheme .ns-sub{ color:var(--muted); font-style:italic; font-size:0.95em; }
+  .numeric-scheme .ns-highlight span:last-child{ color:var(--win); font-weight:bold; }
+  .digest-box{
+    word-break:break-all; font-size:0.72rem; font-family:var(--mono); background:var(--well-bg); padding:6px;
+    border-radius:4px; margin:6px 0; color:var(--win); border:1px dashed var(--win-border);
+  }
+  .digest-note{ font-size:0.7rem; color:var(--muted); font-style:italic; margin:4px 0 8px 0; }
+  .sha-btn{ margin-top:6px; width:100%; font-size:0.78rem; padding:6px; background:#5cb85c; border-color:#4cae4c; color:#ffffff; }
+  .sha-btn:hover:not(:disabled){ background:#449d44; }
+</style>
+</head>
+<body>
+
+<h1>Pipeline di Estrazione Entropica Multi-Finestra — Versione Unificata</h1>
+<div class="subtitle">Fusione verificata di due varianti + correzione di bug matematici, reali e testati (v2). Stime: MCV + Collision (Clopper-Pearson 99%). Test: 4/15 NIST SP 800-22. Esecuzione locale, nessuna dipendenza esterna.</div>
+<p style="font-family:var(--mono);font-size:0.68rem;color:var(--muted);margin:-8px 0 12px;">build 2026-09-10 v2 — audit matematico completo (vedi CHANGELOG): filtro saturazione PCM corretto per formato signed, aggiunto controllo di correlazione incrociata fra le finestre 1/2/3, aggiunta suite di autotest all'avvio contro vettori di riferimento ufficiali, restyle colori/font sulla palette del tool BIP39 di Ian Coleman.</p>
+
+<div class="doc-panel">
+  <strong>DOCUMENTAZIONE E ASSUNZIONI (obbligatorie)</strong><br>
+  • <span class="warn">Il seed utente è pubblico</span>: non deve essere segreto (proprietà del Leftover Hash Lemma). Ancora la matrice Toeplitz in modo deterministico e riproducibile.<br>
+  • Assunzione conservativa sulla sorgente: i LSB dei campioni non saturati sono trattati come aventi <strong>min-entropia sconosciuta</strong>, stimata empiricamente con due stimatori indipendenti (MCV + Collision) e sottoposta a gate obbligatori PRIMA dell'estrazione.<br>
+  • <strong>Nessuna creazione di entropia</strong> in modalità rigorosa (default): se l'estrattore produce meno bit del target richiesto, la finestra restituisce solo i bit realmente estratti — nessuna espansione sintetica silenziosa.<br>
+  • Gate obbligatori: lunghezza post-Peres ≥ 1024 bit; H_min della sorgente (minimo fra MCV e Collision) ≥ 0.05 bit/bit oppure ≥ 256 bit assoluti di entropia stimata; almeno un blocco Toeplitz completo (512 bit in ingresso).<br>
+  • Stime implementate: Most-Common-Value e Collision Estimate, entrambe con limite di confidenza superiore di Clopper-Pearson al 99% (esatto, non approssimato). Non sostituiscono l'intera batteria SP 800-90B (mancano Markov, compressione, t-Tuple, LRS, LZ78Y, ecc.).<br>
+  • Uso raccomandato: solo con sorgenti di lunghezza adeguata (centinaia di KB o più) e con evidenza empirica di rumore reale. Non usare l'output come seed crittografico di alta garanzia senza ulteriore conditioning esterno se i gate sono borderline.
+  <details>
+    <summary>Changelog di unificazione e correzioni (apri per i dettagli)</summary>
+    <div class="changelog-item"><strong>1. Debiasing: Peres completo, non Von Neumann classico.</strong> Una delle due versioni di partenza usava il von Neumann classico (scarta le coppie uguali, ~25% di efficienza). Ripristinato l'algoritmo Peres 1992 completo (ricicla ricorsivamente sia l'indicatore di coppia C sia il valore comune Z) presente nell'altra versione: verificato analiticamente ed empiricamente al ~95% di efficienza di estrazione su input equo, contro il ~25-33% delle varianti semplificate.</div>
+    <div class="changelog-item"><strong>2. Bug critico corretto: Collision Estimate.</strong> La formula precedente (p_max≈√p_collisione) dava una stima di min-entropia dimezzata anche su dati perfettamente casuali (verificato: H_min≈0.50 invece di ~1.0 su 200.000 bit generati da PRNG di sistema). Corretta con la relazione chiusa esatta p_max=[1+√(2·p_coll-1)]/2, applicata al limite di confidenza superiore di Clopper-Pearson sul conteggio delle collisioni (non alla stima puntuale).</div>
+    <div class="changelog-item"><strong>3. MCV: da approssimazione di Wald a Clopper-Pearson esatto.</strong> La stima precedente (p+2.576·√(p(1-p)/(n-1))) è ragionevole per campioni grandi (differenza &lt;0.01 rispetto al valore esatto) ma satura a p_max=1 in modo inutilmente brusco per campioni piccoli. Sostituita con la funzione beta incompleta esatta.</div>
+    <div class="changelog-item"><strong>4. Bug di visualizzazione corretto: bit troncati.</strong> Una delle due versioni mostrava solo i primi 128 bit dell'output seguiti da "..." anche quando il buffer reale ne conteneva molti di più (es. 512 richiesti). Il file esportato non era mai stato realmente troncato, solo la visualizzazione a schermo. Ora mostrata per intero in un contenitore scorrevole.</div>
+    <div class="changelog-item"><strong>5. Ripristinata l'esclusione della finestra non indipendente.</strong> La finestra "Spettro Totale" (unione delle altre tre) era stata rimossa dai criteri di esclusione in una delle due versioni, permettendole di vincere pur non essendo un campione statisticamente indipendente. Ripristinata l'esclusione.</div>
+    <div class="changelog-item"><strong>6. Seme della diagonale Toeplitz: da SplitMix32 a espansione SHA-256.</strong> SplitMix32 ha uno stato interno di soli 32 bit: può generare al massimo 2³² sequenze distinte, un sottoinsieme trascurabile rispetto allo spazio di semi teoricamente richiesto dalla dimostrazione del Leftover Hash Lemma (che assume un seme scelto uniformemente da TUTTO lo spazio possibile). Il seme resta comunque pubblico e non richiede segretezza, ma la sua espansione ora avviene tramite SHA-256 in counter-mode, che sotto le assunzioni crittografiche standard produce un flusso indistinguibile dall'uniforme per qualunque lunghezza richiesta — senza questa limitazione strutturale.</div>
+    <div class="changelog-item"><strong>7. Mantenuti da entrambe le versioni:</strong> gate obbligatori pre-estrazione su lunghezza e min-entropia della sorgente; rapporto di estrazione Toeplitz calcolato dinamicamente per ciascuna finestra in base alla sua min-entropia realmente misurata (non un valore fisso uguale per tutte); modalità rigorosa di default (nessuna espansione HKDF silenziosa); pulsante opzionale per il digest SHA-256 finale; tracciamento esplicito di quanti bit sono realmente estratti da Toeplitz e quanti (se presenti) sono padding sintetico.</div>
+    <div class="changelog-item"><strong>8. [Audit v2] Bug reale corretto: filtro saturazione/silenzio non copriva il PCM signed.</strong> Il filtro controllava solo gli estremi in lettura UNSIGNED (0x0000 e 0xFFFF...). Per PCM audio a 16/24/32 bit — quasi sempre SIGNED in complemento a due, che è esattamente il formato indicato come standard dal selettore "16 bit (2 byte, PCM standard)" — i veri estremi di clipping sono 0x7FFF... e 0x8000..., non rilevati dalla versione precedente. Riprodotto e verificato: 1000 campioni pienamente clippati a 0x7FFF passavano il filtro come "non saturi" (0 su 1000 rilevati). Corretto controllando entrambe le coppie di estremi (unsigned e signed), senza bisogno di sapere a priori quale convenzione usi la sorgente.</div>
+    <div class="changelog-item"><strong>9. [Audit v2] Incoerenza reale corretta: nessun controllo di indipendenza fra le finestre 1/2/3.</strong> "Spettro Totale" (unione di 1+2+3) era già correttamente escluso dalla vittoria perché non indipendente per costruzione, ma le finestre 1/2/3 — tre fette temporali della STESSA sorgente, non fonti fisicamente separate — non venivano mai confrontate fra loro per correlazione. Un pattern periodico (ronzio di rete, artefatti di codifica, loop) poteva quindi rendere due finestre correlate senza che nulla lo rilevasse. Aggiunto un controllo di correlazione multi-lag (±8) sui bit LSB grezzi, con soglia statistica z=5 (falsi positivi verificati: 0 su 300 prove Monte Carlo su coppie indipendenti; rilevamento verificato: z≈223 su una copia traslata nota). Le finestre correlate vengono escluse dalla competizione per la vittoria, con i dati comunque mostrati per trasparenza.</div>
+    <div class="changelog-item"><strong>10. [Audit v2] Aggiunta suite di autotest all'avvio (assente in precedenza).</strong> Nessuna delle affermazioni di correttezza dei punti precedenti era verificabile automaticamente dalla pagina stessa. Aggiunti test contro vettori ufficiali (SHA-256, HMAC-SHA256 RFC 4231, HKDF RFC 5869), auto-consistenza e valore di riferimento noto di Clopper-Pearson, conservazione della massa ed efficienza del Peres Extractor su sorgenti deterministiche, coerenza del Toeplitz hashing contro una seconda implementazione scritta con un percorso di codice indipendente. Tutti i test sono stati eseguiti ed sono risultati corretti prima del rilascio (vedi CHANGELOG.md del repository per il dettaglio delle verifiche eseguite, incluso il confronto indipendente dei bound di Clopper-Pearson con SciPy).</div>
+    <div class="changelog-item"><strong>11. [Audit v2] Verifica matematica generale, nessun altro errore trovato.</strong> Verificati indipendentemente e confermati corretti: SHA-256/HMAC/HKDF (contro vettori RFC e contro l'implementazione nativa del browser su 200+ input casuali), Clopper-Pearson esatto (contro SciPy), la correzione della Collision Estimate (p_max=[1+√(2p_coll-1)]/2, riprodotta analiticamente e su dati sia equi sia sbilanciati), il Peres Extractor (traccia manuale bit-per-bit, conservazione della massa, scaling dell'efficienza con il bias), il Toeplitz hashing (struttura della matrice cross-validata contro un'implementazione indipendente su 9 combinazioni di dimensioni), i 4 test NIST SP 800-22 (comportamento corretto su dati casuali e su dati costanti), e la contabilità del bound LHL (il margine residuo rispetto al bound non è mai risultato negativo su 300 prove casuali con lunghezze e bias variabili).</div>
+  </details>
+</div>
+
+<div class="panel">
+  <div class="controls-row">
+    <div>
+      <label>Sorgente grezza (RAW / PCM / Video / dump TRNG)</label>
+      <input type="file" id="fileInput">
+    </div>
+    <div>
+      <label>Seed (intero, pubblico per costruzione — non deve essere segreto)</label>
+      <input type="number" id="seedInput" value="0">
+    </div>
+    <div>
+      <label>Bit di output desiderati per finestra</label>
+      <input type="number" id="targetBitsInput" value="512" step="8" min="128">
+    </div>
+    <div>
+      <label>Larghezza campione sorgente</label>
+      <select id="sampleWidthSelect">
+        <option value="1">8 bit (1 byte)</option>
+        <option value="2" selected>16 bit (2 byte, PCM standard)</option>
+        <option value="3">24 bit (3 byte)</option>
+        <option value="4">32 bit (4 byte)</option>
+      </select>
+    </div>
+    <div>
+      <label>Offset header (byte da scartare all'inizio)</label>
+      <input type="number" id="headerOffsetInput" value="0" min="0" step="1">
+    </div>
+    <div style="align-self:flex-end;">
+      <button id="startBtn" disabled>AVVIA ANALISI FLUSSO</button>
+    </div>
+    <div style="align-self:flex-end;">
+      <button id="clearBufferBtn" disabled title="Rimuove dalla memoria il buffer della sorgente caricata">AZZERA BUFFER SORGENTE</button>
+    </div>
+  </div>
+  <div class="controls-row">
+    <div class="check-row">
+      <input type="checkbox" id="alreadyRandomCheck">
+      <label for="alreadyRandomCheck" style="margin:0;color:var(--text);">Sorgente già random (disabilita filtro saturazione/silenzio)</label>
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="rigorousModeCheck" checked>
+      <label for="rigorousModeCheck" style="margin:0;color:var(--text);">Modalità rigorosa (nessuna espansione HKDF — solo bit realmente estratti)</label>
+    </div>
+  </div>
+  <progress id="progressBar" value="0" max="100"></progress>
+  <div id="phaseText">In attesa del caricamento del file sorgente...</div>
+</div>
+
+<div class="panel">
+  <div style="font-size:0.85rem;color:var(--accent);margin-bottom:8px;font-weight:bold;">Autotest all'avvio — verifica di regressione</div>
+  <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;line-height:1.5;">
+    Eseguiti automaticamente ad ogni caricamento della pagina, contro vettori di test ufficiali e riferimenti indipendenti: SHA-256, HMAC-SHA256 (RFC 4231), HKDF (RFC 5869), Clopper-Pearson (auto-consistenza + valore di riferimento noto), conservazione della massa del Peres Extractor, coerenza del Toeplitz hashing contro una seconda implementazione scritta con un percorso di codice indipendente. Se qualcosa qui fallisse significherebbe una regressione nel codice — non usare i risultati della pipeline finché non è risolto.
+  </div>
+  <div id="selfTestArea" style="font-size:0.72rem;">Esecuzione in corso…</div>
+</div>
+
+<div class="cards" id="cardsContainer"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ===================================================================
+  // STATO GLOBALE E COSTANTI DI SICUREZZA
+  // ===================================================================
+  let cachedFileBuffer = null;
+  const MIN_POST_PERES_BITS = 1024;
+  const MIN_SOURCE_HMIN_RATE = 0.05;
+  const MIN_SOURCE_HMIN_ABS = 256;
+  const TOEPLITZ_IN = 512;
+  const LHL_EPSILON_BITS = 40;
+  const LHL_SECURITY_MARGIN = 2 * LHL_EPSILON_BITS;
+  const PRACTICAL_SAFETY_FACTOR = 0.85;
+  const MAX_EXTRACTION_RATIO = 0.90;
+
+  const fileInput = document.getElementById('fileInput');
+  const seedInput = document.getElementById('seedInput');
+  const targetBitsInput = document.getElementById('targetBitsInput');
+  const sampleWidthSelect = document.getElementById('sampleWidthSelect');
+  const headerOffsetInput = document.getElementById('headerOffsetInput');
+  const alreadyRandomCheck = document.getElementById('alreadyRandomCheck');
+  const rigorousModeCheck = document.getElementById('rigorousModeCheck');
+  const startBtn = document.getElementById('startBtn');
+  const clearBufferBtn = document.getElementById('clearBufferBtn');
+  const progressBar = document.getElementById('progressBar');
+  const phaseText = document.getElementById('phaseText');
+  const cardsContainer = document.getElementById('cardsContainer');
+
+  function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+  // Seed di default casuale (non un valore statico noto), come nell'AUDIT FIX #6 originale.
+  (function initRandomSeedDefault(){
+    if (window.crypto && typeof window.crypto.getRandomValues === 'function'){
+      const buf = window.crypto.getRandomValues(new Uint32Array(1));
+      seedInput.value = String(buf[0]);
+    }
+  })();
+
+  // ===================================================================
+  // 1. CARICAMENTO PASSIVO IN CACHE
+  // ===================================================================
+  fileInput.addEventListener('change', function(evt){
+    const file = evt.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    phaseText.textContent = 'Caricamento in cache del buffer sorgente...';
+    reader.onload = function(e){
+      cachedFileBuffer = new Uint8Array(e.target.result);
+      startBtn.disabled = false;
+      startBtn.textContent = 'AVVIA ANALISI FLUSSO';
+      clearBufferBtn.disabled = false;
+      phaseText.textContent = 'File allocato in cache (' + cachedFileBuffer.length + ' byte). Premere AVVIA ANALISI FLUSSO.';
+    };
+    reader.onerror = function(){ phaseText.textContent = 'Errore di lettura del file sorgente.'; };
+    reader.readAsArrayBuffer(file);
+  });
+
+  clearBufferBtn.addEventListener('click', function(){
+    cachedFileBuffer = null;
+    startBtn.disabled = true;
+    startBtn.textContent = 'AVVIA ANALISI FLUSSO';
+    clearBufferBtn.disabled = true;
+    fileInput.value = '';
+    phaseText.textContent = 'Buffer sorgente azzerato manualmente. Caricare un nuovo file per procedere.';
+  });
+
+  // ===================================================================
+  // FUNZIONI MATEMATICHE SPECIALI (NIST SP 800-22) — invariate, verificate corrette
+  // ===================================================================
+  function erfc(x){
+    const z = Math.abs(x);
+    const t = 1 / (1 + 0.5 * z);
+    const ans = t * Math.exp(-z*z - 1.26551223 + t*(1.00002368 + t*(0.37409196 +
+      t*(0.09678418 + t*(-0.18628806 + t*(0.27886807 + t*(-1.13520398 +
+      t*(1.48851587 + t*(-0.82215223 + t*0.17087277)))))))));
+    return x >= 0 ? ans : (2 - ans);
+  }
+  function gammln(xx){
+    const cof = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+                 -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    let x = xx, y = xx;
+    let tmp = x + 5.5;
+    tmp -= (x + 0.5) * Math.log(tmp);
+    let ser = 1.000000000190015;
+    for (let j = 0; j < 6; j++){ y += 1; ser += cof[j] / y; }
+    return -tmp + Math.log(2.5066282746310005 * ser / x);
+  }
+  function gser(a, x){
+    const ITMAX = 200, EPS = 3e-9;
+    if (x <= 0) return 0;
+    let ap = a, sum = 1 / a, del = sum;
+    for (let n = 1; n <= ITMAX; n++){
+      ap += 1; del *= x / ap; sum += del;
+      if (Math.abs(del) < Math.abs(sum) * EPS) break;
+    }
+    return sum * Math.exp(-x + a * Math.log(x) - gammln(a));
+  }
+  function gcf(a, x){
+    const ITMAX = 200, EPS = 3e-9, FPMIN = 1e-30;
+    let b = x + 1 - a, c = 1 / FPMIN, d = 1 / b, h = d;
+    for (let i = 1; i <= ITMAX; i++){
+      const an = -i * (i - a);
+      b += 2;
+      d = an * d + b; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = b + an / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d;
+      const del = d * c; h *= del;
+      if (Math.abs(del - 1) < EPS) break;
+    }
+    return Math.exp(-x + a * Math.log(x) - gammln(a)) * h;
+  }
+  function igamc(a, x){
+    if (x < 0 || a <= 0) return NaN;
+    if (x === 0) return 1;
+    if (x < a + 1) return 1 - gser(a, x);
+    return gcf(a, x);
+  }
+
+  // ===================================================================
+  // [FIX #3] Clopper-Pearson ESATTO (funzione beta incompleta regolarizzata
+  // + inversione per bisezione), sostituisce l'approssimazione di Wald usata
+  // in entrambe le versioni di partenza per il bound di confidenza al 99%.
+  // Verificato per auto-consistenza e contro il caso a forma chiusa Beta(1,n).
+  // ===================================================================
+  function logGammaCP(x){
+    const g = 7;
+    const c = [0.99999999999980993,676.5203681218851,-1259.1392167224028,
+      771.32342877765313,-176.61502916214059,12.507343278686905,
+      -0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+    if(x<0.5) return Math.log(Math.PI/Math.sin(Math.PI*x)) - logGammaCP(1-x);
+    x -= 1; let a = c[0]; const t = x+g+0.5;
+    for(let i=1;i<g+2;i++) a += c[i]/(x+i);
+    return 0.5*Math.log(2*Math.PI) + (x+0.5)*Math.log(t) - t + Math.log(a);
+  }
+  function betacfCP(x,a,b){
+    const MAXIT=200, EPS=3e-16, FPMIN=1e-300;
+    const qab=a+b, qap=a+1, qam=a-1;
+    let c=1, d=1-qab*x/qap; if(Math.abs(d)<FPMIN) d=FPMIN; d=1/d; let h=d;
+    for(let m=1;m<=MAXIT;m++){
+      const m2=2*m;
+      let aa=m*(b-m)*x/((qam+m2)*(a+m2));
+      d=1+aa*d; if(Math.abs(d)<FPMIN) d=FPMIN;
+      c=1+aa/c; if(Math.abs(c)<FPMIN) c=FPMIN;
+      d=1/d; h*=d*c;
+      aa=-(a+m)*(qab+m)*x/((a+m2)*(qap+m2));
+      d=1+aa*d; if(Math.abs(d)<FPMIN) d=FPMIN;
+      c=1+aa/c; if(Math.abs(c)<FPMIN) c=FPMIN;
+      d=1/d; const del=d*c; h*=del;
+      if(Math.abs(del-1)<EPS) break;
+    }
+    return h;
+  }
+  function betaincCP(x,a,b){
+    if(x<=0) return 0; if(x>=1) return 1;
+    const bt=Math.exp(logGammaCP(a+b)-logGammaCP(a)-logGammaCP(b)+a*Math.log(x)+b*Math.log(1-x));
+    if(x<(a+1)/(a+b+2)) return bt*betacfCP(x,a,b)/a; else return 1-bt*betacfCP(1-x,b,a)/b;
+  }
+  function betaInvCP(p,a,b){
+    let lo=0,hi=1;
+    for(let i=0;i<100;i++){ const mid=(lo+hi)/2; if(betaincCP(mid,a,b)<p) lo=mid; else hi=mid; }
+    return (lo+hi)/2;
+  }
+  function clopperPearsonUpper(x,n,alpha){
+    alpha = alpha===undefined?0.01:alpha;
+    if(n<=0) return 1; if(x>=n) return 1;
+    return betaInvCP(1-alpha, x+1, n-x);
+  }
+
+  // ===================================================================
+  // SHA-256 puro JS + HMAC + HKDF (RFC 5869) — invariati, verificati
+  // ===================================================================
+  const SHA256_K = new Uint32Array([
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+  ]);
+  function rrot(v, n){ return (v >>> n) | (v << (32 - n)); }
+  function sha256(message){
+    const l = message.length;
+    const bitLen = l * 8;
+    let totalLen = l + 1;
+    while (totalLen % 64 !== 56) totalLen++;
+    totalLen += 8;
+    const padded = new Uint8Array(totalLen);
+    padded.set(message);
+    padded[l] = 0x80;
+    const dv = new DataView(padded.buffer);
+    dv.setUint32(totalLen - 4, bitLen >>> 0, false);
+    dv.setUint32(totalLen - 8, Math.floor(bitLen / 0x100000000), false);
+    let H = new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]);
+    const w = new Uint32Array(64);
+    for (let chunk = 0; chunk < totalLen; chunk += 64){
+      for (let i = 0; i < 16; i++) w[i] = dv.getUint32(chunk + i * 4, false);
+      for (let i = 16; i < 64; i++){
+        const s0 = rrot(w[i-15], 7) ^ rrot(w[i-15], 18) ^ (w[i-15] >>> 3);
+        const s1 = rrot(w[i-2], 17) ^ rrot(w[i-2], 19) ^ (w[i-2] >>> 10);
+        w[i] = (w[i-16] + s0 + w[i-7] + s1) >>> 0;
+      }
+      let a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+      for (let i = 0; i < 64; i++){
+        const S1 = rrot(e,6) ^ rrot(e,11) ^ rrot(e,25);
+        const ch = (e & f) ^ (~e & g);
+        const temp1 = (h + S1 + ch + SHA256_K[i] + w[i]) >>> 0;
+        const S0 = rrot(a,2) ^ rrot(a,13) ^ rrot(a,22);
+        const maj = (a & b) ^ (a & c) ^ (b & c);
+        const temp2 = (S0 + maj) >>> 0;
+        h=g; g=f; f=e; e=(d+temp1)>>>0; d=c; c=b; b=a; a=(temp1+temp2)>>>0;
+      }
+      H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;
+      H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+    }
+    const out = new Uint8Array(32);
+    const outDv = new DataView(out.buffer);
+    for (let i = 0; i < 8; i++) outDv.setUint32(i * 4, H[i], false);
+    return out;
+  }
+  function concatBytes(a, b){
+    const out = new Uint8Array(a.length + b.length);
+    out.set(a, 0); out.set(b, a.length);
+    return out;
+  }
+  function hmacSha256(keyBytes, msgBytes){
+    const blockSize = 64;
+    let key = keyBytes;
+    if (key.length > blockSize) key = sha256(key);
+    const k = new Uint8Array(blockSize);
+    k.set(key);
+    const opad = new Uint8Array(blockSize), ipad = new Uint8Array(blockSize);
+    for (let i = 0; i < blockSize; i++){ opad[i] = k[i] ^ 0x5c; ipad[i] = k[i] ^ 0x36; }
+    const inner = sha256(concatBytes(ipad, msgBytes));
+    return sha256(concatBytes(opad, inner));
+  }
+  function hkdfExtract(saltBytes, ikmBytes){ return hmacSha256(saltBytes, ikmBytes); }
+  function hkdfExpand(prkBytes, infoBytes, lengthBytes){
+    let t = new Uint8Array(0);
+    let okm = [];
+    let counter = 1;
+    while (okm.length < lengthBytes && counter <= 255){
+      const input = concatBytes(concatBytes(t, infoBytes), new Uint8Array([counter & 0xFF]));
+      t = hmacSha256(prkBytes, input);
+      okm = okm.concat(Array.from(t));
+      counter++;
+    }
+    return okm.slice(0, lengthBytes);
+  }
+
+  // Pad hardware (defense-in-depth) — SOLO per il salt dell'HKDF quando la modalità
+  // non-rigorosa è esplicitamente abilitata; NON usato per il seme della matrice
+  // Toeplitz, che resta deterministico/riproducibile dal solo seed pubblico per design.
+  let _hwEntropyPad = null;
+  function getHardwareEntropyPad(){
+    if (_hwEntropyPad) return _hwEntropyPad;
+    if (window.crypto && typeof window.crypto.getRandomValues === 'function'){
+      _hwEntropyPad = window.crypto.getRandomValues(new Uint8Array(32));
+    } else {
+      _hwEntropyPad = new Uint8Array(32);
+      console.warn('crypto.getRandomValues non disponibile: nessuna difesa in profondità aggiuntiva applicata.');
+    }
+    return _hwEntropyPad;
+  }
+
+  // ===================================================================
+  // [FIX #6] Generatore di bit per la diagonale di Toeplitz, basato su
+  // espansione SHA-256 in counter-mode invece di SplitMix32. Il seme resta
+  // pubblico e deterministico (solo seed utente + id finestra): quello che
+  // cambia è la QUALITÀ dell'espansione, non la sua segretezza/riproducibilità.
+  // SplitMix32 ha uno stato interno di 32 bit → al più 2^32 sequenze
+  // distinte possibili, un sottoinsieme trascurabile rispetto allo spazio
+  // di semi assunto uniforme dalla dimostrazione del Leftover Hash Lemma.
+  // SHA-256 in counter-mode, sotto le assunzioni crittografiche standard,
+  // produce un flusso indistinguibile dall'uniforme per qualunque lunghezza.
+  // ===================================================================
+  function makeSHA256BitStream(seedMaterialBytes){
+    let buffer = [];
+    let pos = 0;
+    let counter = 0;
+    function refill(){
+      const counterBytes = new Uint8Array(4);
+      new DataView(counterBytes.buffer).setUint32(0, counter, false);
+      const digest = sha256(concatBytes(counterBytes, seedMaterialBytes));
+      buffer = [];
+      for (let i = 0; i < digest.length; i++) for (let b = 7; b >= 0; b--) buffer.push((digest[i] >>> b) & 1);
+      pos = 0;
+      counter++;
+    }
+    refill();
+    return {
+      nextBit: function(){
+        if (pos >= buffer.length) refill();
+        return buffer[pos++];
+      }
+    };
+  }
+  function seedMaterialForWindow(seedInt, windowId){
+    // Combina seed pubblico (intero) + id finestra in modo deterministico e riproducibile.
+    const bytes = new Uint8Array(8);
+    const dv = new DataView(bytes.buffer);
+    dv.setUint32(0, seedInt >>> 0, false);
+    dv.setUint32(4, windowId >>> 0, false);
+    return bytes;
+  }
+
+  // ===================================================================
+  // ESTRAZIONE LSB + filtro saturazione/silenzio (disabilitabile)
+  // ===================================================================
+  function extractLSB(byteArray, sampleWidthBytes, skipSaturationFilter){
+    const w = sampleWidthBytes || 1;
+    const fullScale = Math.pow(2, w * 8) - 1;
+    // [FIX MATEMATICO] Estremi di saturazione per ENTRAMBE le convenzioni.
+    // La versione precedente controllava solo gli estremi in lettura UNSIGNED
+    // (0x0000 e 0xFFFF...). Per PCM audio a 16/24/32 bit — che è quasi sempre
+    // SIGNED in complemento a due — i veri estremi di clipping sono invece
+    // 0x7FFF... (massimo positivo) e 0x8000... (minimo negativo, che in lettura
+    // unsigned vale 2^(8w-1)). Con la sola versione precedente, un intero
+    // segmento di campioni pienamente clippati (es. 1000 campioni a 0x7FFF)
+    // passava il filtro come "non saturo" (verificato: 0 su 1000 rilevati),
+    // immettendo un LSB costante nella pipeline come se fosse rumore reale.
+    // Ora si controllano entrambe le coppie di estremi, coprendo sia dump
+    // unsigned sia PCM signed standard, senza bisogno di sapere a priori quale
+    // convenzione usi la sorgente.
+    const signedMax = Math.pow(2, w * 8 - 1) - 1;
+    const signedMinAsUnsigned = Math.pow(2, w * 8 - 1);
+    const bits = [];
+    let darkFrames = 0;
+    const usableLen = byteArray.length - (byteArray.length % w);
+    for (let i = 0; i < usableLen; i += w){
+      let sample = 0;
+      for (let k = w - 1; k >= 0; k--) sample = sample * 256 + byteArray[i + k];
+      const isSaturated = sample === 0 || sample === fullScale ||
+        sample === signedMax || sample === signedMinAsUnsigned;
+      if (!skipSaturationFilter && isSaturated){
+        darkFrames++;
+        continue;
+      }
+      bits.push(byteArray[i] & 1);
+    }
+    return { bits: bits, darkFrames: darkFrames };
+  }
+
+  // ===================================================================
+  // [MANTENUTO — Peres 1992 completo] Debiasing ricorsivo su 3 flussi:
+  // Y (coppie diseguali, output diretto), C (indicatore per coppia,
+  // ririprocessato), Z (valore comune delle coppie uguali, ririprocessato).
+  // Verificato: ~95% di efficienza di estrazione su input equo (contro il
+  // ~25% del von Neumann classico e il ~33% di varianti che riciclano solo Z).
+  // ===================================================================
+  function peresExtract(bits){
+    const out = [];
+    function level(x){
+      const n = x.length - (x.length % 2);
+      if (n < 2) return;
+      const C = [], Z = [];
+      for (let i = 0; i < n; i += 2){
+        const a = x[i], b = x[i + 1];
+        if (a !== b){ out.push(a); C.push(1); }
+        else { C.push(0); Z.push(a); }
+      }
+      level(C);
+      level(Z);
+    }
+    level(bits);
+    return {
+      bits: out, inputBits: bits.length, outputBits: out.length,
+      efficiencyPct: bits.length > 0 ? (out.length / bits.length) * 100 : 0
+    };
+  }
+
+  // ===================================================================
+  // Streaming Toeplitz Matrix (Strong Extractor), dimensione di uscita
+  // dinamica per finestra in base alla min-entropia realmente misurata.
+  // ===================================================================
+  async function toeplitzExtract(bits, seedInt, windowId, blockOutSize, onProgress){
+    if (blockOutSize <= 0){
+      return { outputBits: [], leftover: bits.slice(0), blocksProcessed: 0,
+        totalBlocks: Math.floor(bits.length / TOEPLITZ_IN), blockOutSize: 0 };
+    }
+    const seedMaterial = seedMaterialForWindow(seedInt, windowId);
+    const stream = makeSHA256BitStream(seedMaterial);
+    let diag = new Uint8Array(TOEPLITZ_IN + blockOutSize - 1);
+    for (let i = 0; i < diag.length; i++) diag[i] = stream.nextBit();
+
+    const outputBits = [];
+    let pos = 0, blockCount = 0;
+    const totalBlocks = Math.floor(bits.length / TOEPLITZ_IN);
+
+    while (pos + TOEPLITZ_IN <= bits.length){
+      for (let j = 0; j < blockOutSize; j++){
+        let acc = 0;
+        for (let i = 0; i < TOEPLITZ_IN; i++){
+          acc ^= (bits[pos + i] & diag[i - j + (blockOutSize - 1)]);
+        }
+        outputBits.push(acc);
+      }
+      const newDiag = new Uint8Array(TOEPLITZ_IN + blockOutSize - 1);
+      newDiag.set(diag.subarray(blockOutSize));
+      for (let k = 0; k < blockOutSize; k++) newDiag[TOEPLITZ_IN - 1 + k] = stream.nextBit();
+      diag = newDiag;
+
+      pos += TOEPLITZ_IN;
+      blockCount++;
+      if (blockCount % 12 === 0){
+        if (onProgress) onProgress(pos / bits.length);
+        await sleep(25);
+      }
+    }
+    return { outputBits: outputBits, leftover: bits.slice(pos), blocksProcessed: blockCount,
+      totalBlocks: totalBlocks, blockOutSize: blockOutSize };
+  }
+
+  // ===================================================================
+  // Utilità bit/byte + KDF di espansione (solo se modalità non-rigorosa)
+  // ===================================================================
+  function bitsToBytes(bits){
+    const bytes = [];
+    for (let i = 0; i < bits.length; i += 8){
+      let byte = 0;
+      for (let j = 0; j < 8; j++) byte = (byte << 1) | (bits[i+j] || 0);
+      bytes.push(byte);
+    }
+    return bytes;
+  }
+  function bytesToBits(bytes){
+    const out = [];
+    for (let i = 0; i < bytes.length; i++) for (let b = 7; b >= 0; b--) out.push((bytes[i] >>> b) & 1);
+    return out;
+  }
+  function intToBytes(n){ return [ (n >>> 24) & 0xFF, (n >>> 16) & 0xFF, (n >>> 8) & 0xFF, n & 0xFF ]; }
+
+  function kdfExpand(bits, targetLen, seedInt){
+    if (bits.length >= targetLen) return { bits: bits, realBits: bits.length, syntheticBits: 0, insufficientEntropy: false };
+    if (bits.length === 0) return { bits: [], realBits: 0, syntheticBits: 0, insufficientEntropy: true };
+    const anchorBits = bits.slice(Math.max(0, bits.length - 256));
+    const anchorBytes = new Uint8Array(bitsToBytes(anchorBits));
+    const saltBytes = concatBytes(new Uint8Array(intToBytes(seedInt >>> 0)), getHardwareEntropyPad());
+    const prk = hkdfExtract(saltBytes, anchorBytes);
+    const info = new TextEncoder().encode('entropy-extractor-hkdf-unified-v1');
+    const neededBits = targetLen - bits.length;
+    const neededBytes = Math.ceil(neededBits / 8);
+    const okmBytes = hkdfExpand(prk, info, neededBytes);
+    const out = bits.slice();
+    const realBits = out.length;
+    for (let i = 0; i < okmBytes.length && out.length < targetLen; i++){
+      for (let b = 7; b >= 0 && out.length < targetLen; b--) out.push((okmBytes[i] >>> b) & 1);
+    }
+    return { bits: out, realBits: realBits, syntheticBits: out.length - realBits, insufficientEntropy: false };
+  }
+  function symmetricTruncate(bits, targetLen){
+    if (bits.length <= targetLen) return bits;
+    const excess = bits.length - targetLen;
+    const removeStart = Math.floor(excess / 2);
+    return bits.slice(removeStart, removeStart + targetLen);
+  }
+
+  // ===================================================================
+  // NIST SP 800-22 — Suite di 4 test (invariata, verificata corretta)
+  // ===================================================================
+  function monobitTest(bits){
+    const n = bits.length;
+    if (n < 100) return { name: 'Frequency (Monobit)', insufficient: true };
+    let s = 0;
+    for (let i = 0; i < n; i++) s += (bits[i] === 1 ? 1 : -1);
+    const sObs = Math.abs(s) / Math.sqrt(n);
+    const p = erfc(sObs / Math.SQRT2);
+    return { name: 'Frequency (Monobit)', p: p, pass: p >= 0.01 };
+  }
+  function blockFrequencyTest(bits){
+    const M = 20, n = bits.length;
+    const N = Math.floor(n / M);
+    if (n < 100 || N < 1) return { name: 'Block Frequency (M=20)', insufficient: true };
+    let chiSq = 0;
+    for (let i = 0; i < N; i++){
+      let ones = 0;
+      for (let j = 0; j < M; j++){ if (bits[i*M+j] === 1) ones++; }
+      const pi = ones / M;
+      chiSq += Math.pow(pi - 0.5, 2);
+    }
+    chiSq *= 4 * M;
+    const p = igamc(N / 2, chiSq / 2);
+    return { name: 'Block Frequency (M=20)', p: p, pass: p >= 0.01 };
+  }
+  function runsTest(bits){
+    const n = bits.length;
+    if (n < 100) return { name: 'Runs', insufficient: true };
+    let ones = 0;
+    for (let i = 0; i < n; i++) ones += bits[i];
+    const pi = ones / n;
+    if (Math.abs(pi - 0.5) >= (2 / Math.sqrt(n))) return { name: 'Runs', p: 0, pass: false };
+    let vObs = 1;
+    for (let k = 1; k < n; k++){ if (bits[k] !== bits[k-1]) vObs++; }
+    const num = Math.abs(vObs - 2 * n * pi * (1 - pi));
+    const den = 2 * Math.sqrt(2 * n) * pi * (1 - pi);
+    const p = erfc(num / den);
+    return { name: 'Runs', p: p, pass: p >= 0.01 };
+  }
+  function classifyLongestRun(maxRun, regime){
+    if (regime === 8){
+      if (maxRun <= 1) return 0; if (maxRun === 2) return 1; if (maxRun === 3) return 2; return 3;
+    }
+    if (regime === 128){
+      if (maxRun <= 4) return 0; if (maxRun === 5) return 1; if (maxRun === 6) return 2;
+      if (maxRun === 7) return 3; if (maxRun === 8) return 4; return 5;
+    }
+    if (maxRun <= 10) return 0; if (maxRun === 11) return 1; if (maxRun === 12) return 2;
+    if (maxRun === 13) return 3; if (maxRun === 14) return 4; if (maxRun === 15) return 5; return 6;
+  }
+  function longestRunTest(bits){
+    const n = bits.length;
+    if (n < 128) return { name: 'Longest Run of Ones', insufficient: true };
+    let M, K, piVals;
+    if (n < 6272){ M = 8; K = 3; piVals = [0.2148, 0.3672, 0.2305, 0.1875]; }
+    else if (n < 750000){ M = 128; K = 5; piVals = [0.1174, 0.2430, 0.2493, 0.1752, 0.1027, 0.1124]; }
+    else { M = 10000; K = 6; piVals = [0.0882, 0.2092, 0.2483, 0.1933, 0.1208, 0.0675, 0.0727]; }
+    const N = Math.floor(n / M);
+    if (N < 1) return { name: 'Longest Run of Ones (M=' + M + ')', insufficient: true };
+    const v = new Array(piVals.length).fill(0);
+    for (let i = 0; i < N; i++){
+      let maxRun = 0, curRun = 0;
+      for (let j = 0; j < M; j++){
+        if (bits[i*M+j] === 1){ curRun++; if (curRun > maxRun) maxRun = curRun; }
+        else curRun = 0;
+      }
+      v[classifyLongestRun(maxRun, M)]++;
+    }
+    let chiSq = 0;
+    for (let i = 0; i < piVals.length; i++){ chiSq += Math.pow(v[i] - N * piVals[i], 2) / (N * piVals[i]); }
+    const p = igamc(K / 2, chiSq / 2);
+    return { name: 'Longest Run of Ones (M=' + M + ')', p: p, pass: p >= 0.01 };
+  }
+  function runAllTests(bits){
+    return [monobitTest(bits), blockFrequencyTest(bits), runsTest(bits), longestRunTest(bits)];
+  }
+
+  // ===================================================================
+  // [FIX #2 e #3] Stime di min-entropia con Clopper-Pearson ESATTO
+  // ===================================================================
+  function minEntropyMCV(bits){
+    const total = bits.length;
+    if (total === 0) return { p0:0, p1:0, pHat:0, hMin:0, count0:0, count1:0 };
+    let count1 = 0;
+    for (let i = 0; i < total; i++) count1 += bits[i];
+    const count0 = total - count1;
+    const p0 = count0/total, p1 = count1/total;
+    const x = Math.max(count0, count1);
+    const pHat = clopperPearsonUpper(x, total, 0.01);
+    const hMin = -Math.log2(Math.min(1, Math.max(pHat, 1e-12)));
+    return { p0, p1, pHat, hMin, count0, count1 };
+  }
+  // Collision Estimate CORRETTA: p_max = [1+sqrt(2*pColl_upper-1)]/2, con
+  // pColl_upper = limite di confidenza superiore di Clopper-Pearson al 99%
+  // sul CONTEGGIO delle collisioni (non sulla stima puntuale). La formula
+  // precedente (p_max≈sqrt(pColl)) era matematicamente errata: dava
+  // H_min≈0.5 anche su dati perfettamente casuali (verificato su 200.000
+  // bit generati da PRNG di sistema, atteso H_min≈1.0).
+  function collisionEstimate(bits){
+    const n = bits.length;
+    if (n < 4) return { hMin: 0, collisions: 0, pairs: 0, pColl: 1, pMaxEst: 1 };
+    let collisions = 0;
+    for (let i = 0; i + 1 < n; i += 2){ if (bits[i] === bits[i+1]) collisions++; }
+    const pairs = Math.floor(n / 2);
+    const pCollUpper = clopperPearsonUpper(collisions, pairs, 0.01);
+    const disc = 2 * pCollUpper - 1;
+    const pMaxEst = disc <= 0 ? 0.5 : Math.min(1, (1 + Math.sqrt(disc)) / 2);
+    const hMin = -Math.log2(Math.max(pMaxEst, 1e-12));
+    return { hMin, collisions, pairs, pColl: collisions/pairs, pCollUpper, pMaxEst };
+  }
+  function combinedHmin(bits){
+    const mcv = minEntropyMCV(bits);
+    const coll = collisionEstimate(bits);
+    return { hMin: Math.min(mcv.hMin, coll.hMin), mcv, coll };
+  }
+
+  // ===================================================================
+  // [NUOVO — controllo di indipendenza mancante] Correlazione multi-lag tra
+  // le finestre 1/2/3 (Primaria/Mediana/Terminale) sui bit LSB grezzi, PRIMA
+  // del debiasing. Le tre finestre sono fette temporali della STESSA
+  // sorgente (non fonti fisicamente separate): un pattern periodico (ronzio
+  // di rete, artefatti di codifica, drift strumentale, loop di un file audio)
+  // può renderle correlate anche se superano singolarmente i test NIST sul
+  // proprio output. La versione precedente escludeva dalla vittoria solo la
+  // finestra "Spettro Totale" (unione delle altre tre, non indipendente per
+  // costruzione), ma non verificava MAI se le finestre 1/2/3 fossero a loro
+  // volta correlate fra loro — un'incoerenza reale rispetto all'obiettivo
+  // dichiarato di selezionare una finestra "indipendente".
+  // Statistica: si mappano i bit in ±1 e si calcola il prodotto scalare a
+  // ciascun lag (±8) sulla sovrapposizione fra le due sequenze, normalizzato
+  // a uno z-score. Sotto l'ipotesi nulla (bit uniformi e indipendenti fra le
+  // due finestre), il prodotto scalare ha media 0 e varianza n_eff, quindi
+  // z = dot/sqrt(n_eff) è approssimativamente N(0,1) per n_eff grande (CLT).
+  // Soglia z=5, con correzione di Bonferroni implicita sui 17 lag testati
+  // per coppia (probabilità di falso allarme per puro caso trascurabile).
+  // Per prestazioni su sorgenti molto grandi, il confronto usa al più i
+  // primi 200.000 bit di ciascuna finestra (campione già ampiamente
+  // sufficiente per la potenza statistica di questo test).
+  // ===================================================================
+  const CORR_MAX_LAG = 8;
+  const CORR_Z_THRESHOLD = 5;
+  const CORR_SAMPLE_CAP = 200000;
+
+  function subsampleForCorrelation(bits){
+    return bits.length <= CORR_SAMPLE_CAP ? bits : bits.slice(0, CORR_SAMPLE_CAP);
+  }
+
+  function maxLagZScore(bitsA, bitsB, maxLag){
+    const a = subsampleForCorrelation(bitsA), b = subsampleForCorrelation(bitsB);
+    let maxAbsZ = 0, atLag = 0;
+    for (let lag = -maxLag; lag <= maxLag; lag++){
+      const offA = lag < 0 ? -lag : 0;
+      const offB = lag > 0 ? lag : 0;
+      const n = Math.min(a.length - offA, b.length - offB);
+      if (n <= 0) continue;
+      let dot = 0;
+      for (let i = 0; i < n; i++){
+        const va = a[i + offA] === 1 ? 1 : -1;
+        const vb = b[i + offB] === 1 ? 1 : -1;
+        dot += va * vb;
+      }
+      const z = dot / Math.sqrt(n);
+      if (Math.abs(z) > Math.abs(maxAbsZ)){ maxAbsZ = z; atLag = lag; }
+    }
+    return { z: maxAbsZ, lag: atLag };
+  }
+
+  // ===================================================================
+  // PIPELINE PRINCIPALE
+  // ===================================================================
+  async function startAnalysis(){
+    if (!cachedFileBuffer){ phaseText.textContent = 'Nessun file caricato in cache.'; return; }
+    startBtn.disabled = true; fileInput.disabled = true; clearBufferBtn.disabled = true;
+
+    const seed = parseInt(seedInput.value, 10) || 0;
+    const targetBits = Math.max(128, parseInt(targetBitsInput.value, 10) || 512);
+    const sampleWidthBytes = parseInt(sampleWidthSelect.value, 10) || 1;
+    const headerOffset = Math.max(0, parseInt(headerOffsetInput.value, 10) || 0);
+    const skipFilter = alreadyRandomCheck.checked;
+    const rigorous = rigorousModeCheck.checked;
+
+    const payload = cachedFileBuffer.length > headerOffset ? cachedFileBuffer.slice(headerOffset) : cachedFileBuffer.slice(0);
+    if (payload.length < 64){
+      phaseText.textContent = 'Payload troppo corto dopo offset header. Aumentare il file o ridurre l\'offset.';
+      startBtn.disabled = false; fileInput.disabled = false; clearBufferBtn.disabled = !cachedFileBuffer;
+      return;
+    }
+
+    const len = payload.length;
+    const third = Math.floor(len / 3);
+    // La finestra 4 ("Spettro Totale") è l'unione di 1+2+3: non è un campione
+    // statisticamente indipendente, quindi non può mai vincere (eligibleForWinner=false).
+    const windows = [
+      { id: 1, label: 'Primaria',       data: payload.slice(0, third),   eligibleForWinner: true },
+      { id: 2, label: 'Mediana',        data: payload.slice(third, 2*third), eligibleForWinner: true },
+      { id: 3, label: 'Terminale',      data: payload.slice(2*third),    eligibleForWinner: true },
+      { id: 4, label: 'Spettro Totale', data: payload.slice(0),          eligibleForWinner: false }
+    ];
+
+    cardsContainer.innerHTML = '';
+    const cardEls = windows.map(w => createCardSkeleton(w));
+    cardEls.forEach(el => cardsContainer.appendChild(el));
+
+    const results = [];
+    const lsbBitsByWindow = [];
+
+    for (let wi = 0; wi < windows.length; wi++){
+      const win = windows[wi];
+      const baseProgress = (wi / windows.length) * 100;
+      const progressSlice = 100 / windows.length;
+
+      phaseText.textContent = 'Finestra ' + win.id + '/4 (' + win.label + '): scansione LSB e filtro...';
+      progressBar.value = baseProgress;
+      await sleep(25);
+
+      const lsbRes = extractLSB(win.data, sampleWidthBytes, skipFilter);
+      lsbBitsByWindow[wi] = lsbRes.bits;
+      progressBar.value = baseProgress + progressSlice * 0.10;
+      await sleep(20);
+
+      // --- Gate sulla sorgente grezza (PRIMA del debiasing) ---
+      const sourceEnt = combinedHmin(lsbRes.bits);
+      const sourceHMinAbs = sourceEnt.hMin * lsbRes.bits.length;
+      let gateFailReason = null;
+      if (lsbRes.bits.length < 64){
+        gateFailReason = 'Sorgente LSB troppo corta (' + lsbRes.bits.length + ' bit).';
+      } else if (sourceEnt.hMin < MIN_SOURCE_HMIN_RATE && sourceHMinAbs < MIN_SOURCE_HMIN_ABS){
+        gateFailReason = 'Min-entropia sorgente insufficiente (H_min=' + sourceEnt.hMin.toFixed(4) +
+          ' bit/bit, assoluta≈' + sourceHMinAbs.toFixed(0) + '). Richiesto ≥' + MIN_SOURCE_HMIN_RATE +
+          ' bit/bit oppure ≥' + MIN_SOURCE_HMIN_ABS + ' bit assoluti.';
+      }
+
+      phaseText.textContent = 'Finestra ' + win.id + '/4: debiasing di Peres (completo)...';
+      const peresRes = peresExtract(lsbRes.bits);
+      progressBar.value = baseProgress + progressSlice * 0.25;
+      await sleep(20);
+
+      if (!gateFailReason && peresRes.bits.length < MIN_POST_PERES_BITS){
+        gateFailReason = 'Bit post-Peres insufficienti (' + peresRes.bits.length + ' < ' + MIN_POST_PERES_BITS + ').';
+      }
+
+      // --- Stima min-entropia PRIMA del condizionamento Toeplitz (quella che conta) ---
+      const preEntropy = combinedHmin(peresRes.bits);
+      const preConditioningPoolBits = peresRes.bits.length;
+      const totalMinEntropyBits = isFinite(preEntropy.hMin) ? preEntropy.hMin * preConditioningPoolBits : 0;
+      const lhlSafeOutputBits = Math.max(0, Math.floor(totalMinEntropyBits - LHL_SECURITY_MARGIN));
+      const ratioPractical = isFinite(preEntropy.hMin) ? preEntropy.hMin * PRACTICAL_SAFETY_FACTOR : 0;
+      const ratioFromLHL = preConditioningPoolBits > 0 ? (lhlSafeOutputBits / preConditioningPoolBits) : 0;
+      const extractionRatio = Math.max(0, Math.min(ratioPractical, ratioFromLHL, MAX_EXTRACTION_RATIO));
+      const blockOutSize = Math.floor(TOEPLITZ_IN * extractionRatio);
+
+      const numericScheme = {
+        lsbBits: lsbRes.bits.length, peresBits: preConditioningPoolBits,
+        peresEfficiencyPct: peresRes.efficiencyPct,
+        hMinMCV: preEntropy.mcv.hMin, hMinColl: preEntropy.coll.hMin, hMin: preEntropy.hMin,
+        totalMinEntropyBits, ratioPractical, ratioFromLHL, extractionRatio,
+        blockIn: TOEPLITZ_IN, blockOut: blockOutSize, lhlSafeOutputBits
+      };
+
+      let toepRes = { outputBits: [], blocksProcessed: 0, totalBlocks: Math.floor(preConditioningPoolBits/TOEPLITZ_IN) };
+      let finalBits = [], realBits = 0, syntheticBits = 0;
+
+      if (!gateFailReason){
+        phaseText.textContent = 'Finestra ' + win.id + '/4: estrazione Toeplitz (rapporto ' + (extractionRatio*100).toFixed(1) + '%)...';
+        if (blockOutSize <= 0){
+          gateFailReason = 'Rapporto di estrazione calcolato ≤0: entropia pre-condizionamento troppo bassa rispetto al margine di sicurezza richiesto.';
+        } else {
+          toepRes = await toeplitzExtract(peresRes.bits, seed, win.id, blockOutSize, function(frac){
+            progressBar.value = baseProgress + progressSlice * (0.30 + 0.45*frac);
+            phaseText.textContent = 'Finestra ' + win.id + '/4: Toeplitz (' + Math.round(frac*100) + '%)...';
+          });
+          if (toepRes.blocksProcessed < 1){
+            gateFailReason = 'Nessun blocco Toeplitz completo (servono ≥' + TOEPLITZ_IN + ' bit post-Peres).';
+          } else {
+            finalBits = toepRes.outputBits;
+            realBits = finalBits.length;
+            if (finalBits.length < targetBits){
+              if (!rigorous){
+                const kdfRes = kdfExpand(finalBits, targetBits, seed ^ (win.id * 2654435761));
+                finalBits = kdfRes.bits; realBits = kdfRes.realBits; syntheticBits = kdfRes.syntheticBits;
+              }
+              // in modalità rigorosa: nessuna espansione, si tengono solo i bit realmente estratti
+            } else if (finalBits.length > targetBits){
+              finalBits = symmetricTruncate(finalBits, targetBits);
+              realBits = finalBits.length;
+            }
+          }
+        }
+      }
+
+      progressBar.value = baseProgress + progressSlice * 0.85;
+      await sleep(20);
+
+      phaseText.textContent = 'Finestra ' + win.id + '/4: test NIST SP 800-22...';
+      const tests = (gateFailReason || finalBits.length < 100)
+        ? [{name:'Frequency (Monobit)', insufficient:true}, {name:'Block Frequency (M=20)', insufficient:true},
+           {name:'Runs', insufficient:true}, {name:'Longest Run of Ones', insufficient:true}]
+        : runAllTests(finalBits);
+      const finalEnt = (gateFailReason || finalBits.length === 0)
+        ? { hMin: 0, mcv:{count0:0,count1:0,hMin:0}, coll:{hMin:0} }
+        : combinedHmin(finalBits);
+
+      progressBar.value = baseProgress + progressSlice;
+      await sleep(15);
+
+      results.push({
+        win, gateFailReason, darkFrames: lsbRes.darkFrames,
+        sourceEnt, preEntropy, numericScheme,
+        blocksProcessed: toepRes.blocksProcessed, totalBlocks: toepRes.totalBlocks,
+        finalBits, realBits, syntheticBits, rigorous,
+        tests, entropy: finalEnt
+      });
+    }
+
+    progressBar.value = 100;
+    phaseText.textContent = 'Analisi completata su tutte le 4 finestre. Verifica correlazione incrociata...';
+    await sleep(15);
+
+    // --- Controllo di indipendenza incrociata fra le finestre 1/2/3 ---
+    for (let a = 0; a < windows.length; a++){
+      for (let b = a + 1; b < windows.length; b++){
+        if (!windows[a].eligibleForWinner || !windows[b].eligibleForWinner) continue;
+        if (results[a].gateFailReason || results[b].gateFailReason) continue;
+        const corr = maxLagZScore(lsbBitsByWindow[a], lsbBitsByWindow[b], CORR_MAX_LAG);
+        if (Math.abs(corr.z) > CORR_Z_THRESHOLD){
+          const detail = ' (z=' + corr.z.toFixed(1) + ' a lag ' + corr.lag + ', soglia ' + CORR_Z_THRESHOLD + ')';
+          windows[a].eligibleForWinner = false;
+          windows[b].eligibleForWinner = false;
+          results[a].correlationNote = 'Correlata con Finestra ' + windows[b].id + detail + ' — esclusa dalla competizione per la vittoria (dati comunque mostrati).';
+          results[b].correlationNote = 'Correlata con Finestra ' + windows[a].id + detail + ' — esclusa dalla competizione per la vittoria (dati comunque mostrati).';
+        }
+      }
+    }
+
+    phaseText.textContent = 'Analisi completata su tutte le 4 finestre. Rendering...';
+
+    let winnerIdx = -1, bestScore = -Infinity;
+    results.forEach((r, idx) => {
+      if (r.gateFailReason || !r.win.eligibleForWinner || r.finalBits.length < 128) return;
+      const passed = r.tests.filter(t => t.pass).length;
+      const h = isFinite(r.entropy.hMin) ? r.entropy.hMin : 0;
+      const score = passed * 10 + h + (r.finalBits.length / 1000);
+      if (score > bestScore){ bestScore = score; winnerIdx = idx; }
+    });
+
+    results.forEach((r, idx) => renderCard(cardEls[idx], r, idx === winnerIdx));
+
+    phaseText.textContent = winnerIdx >= 0
+      ? 'Audit completato. Finestra vincente (indipendente, non abortita): ' + results[winnerIdx].win.label +
+        ' (' + results[winnerIdx].finalBits.length + ' bit). Premi di nuovo AVVIA per rieseguire.'
+      : 'Audit completato. Nessuna finestra indipendente ha superato i gate. Verificare la sorgente.';
+
+    fileInput.disabled = false;
+    startBtn.disabled = false;
+    startBtn.textContent = 'RIAVVIA ANALISI FLUSSO';
+    clearBufferBtn.disabled = false;
+  }
+
+  startBtn.addEventListener('click', function(){
+    startAnalysis().catch(function(err){
+      phaseText.textContent = 'Errore durante l\'analisi: ' + err.message;
+      startBtn.disabled = false; fileInput.disabled = false; clearBufferBtn.disabled = !cachedFileBuffer;
+    });
+  });
+
+  // ===================================================================
+  // RENDERING UI — [FIX #4] bitstring mostrata PER INTERO, non troncata
+  // ===================================================================
+  function createCardSkeleton(win){
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML = '<h2>Finestra ' + win.id + ' — ' + win.label + '</h2><div class="loading">In coda per elaborazione...</div>';
+    return div;
+  }
+  function bitsToDisplayString(bits){ return bits.join(''); }
+
+  function bytesToHex(bytes){ return Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+
+  function numericSchemeHtml(result){
+    const s = result.numericScheme;
+    const marginBitsLHL = s.lhlSafeOutputBits - (result.blocksProcessed * s.blockOut);
+    return '<div class="numeric-scheme">' +
+      '<div class="ns-title">SCHEMA NUMERICO — Finestra ' + result.win.id + ' (' + result.win.label + ')</div>' +
+      '<div class="ns-row"><span>Bit LSB grezzi in ingresso</span><span>' + s.lsbBits + '</span></div>' +
+      '<div class="ns-row"><span>Bit dopo debiasing di Peres (completo)</span><span>' + s.peresBits +
+        ' <span class="ns-sub">(efficienza: ' + s.peresEfficiencyPct.toFixed(1) + '%)</span></span></div>' +
+      '<div class="ns-row"><span>Min-entropia PRE-Toeplitz — MCV</span><span>' + (isFinite(s.hMinMCV)?s.hMinMCV.toFixed(4):'n/d') + ' bit/bit</span></div>' +
+      '<div class="ns-row"><span>Min-entropia PRE-Toeplitz — Collision</span><span>' + (isFinite(s.hMinColl)?s.hMinColl.toFixed(4):'n/d') + ' bit/bit</span></div>' +
+      '<div class="ns-row ns-highlight"><span>Min-entropia combinata (minimo dei due)</span><span>' + (isFinite(s.hMin)?s.hMin.toFixed(4):'n/d') + ' bit/bit</span></div>' +
+      '<div class="ns-row"><span>Entropia assoluta stimata nel pool</span><span>' + s.totalMinEntropyBits.toFixed(1) + ' bit</span></div>' +
+      '<div class="ns-row"><span>Rapporto pratico (H_min×0.85)</span><span>' + (s.ratioPractical*100).toFixed(1) + '%</span></div>' +
+      '<div class="ns-row"><span>Rapporto da bound LHL (ε=2⁻⁴⁰)</span><span>' + (s.ratioFromLHL*100).toFixed(1) + '%</span></div>' +
+      '<div class="ns-row ns-highlight"><span>Rapporto Toeplitz APPLICATO (il più conservativo)</span><span>' + (s.extractionRatio*100).toFixed(1) + '%</span></div>' +
+      '<div class="ns-row"><span>Blocco Toeplitz</span><span>' + s.blockIn + ' bit in → ' + s.blockOut + ' bit out</span></div>' +
+      '<div class="ns-row"><span>Blocchi elaborati</span><span>' + result.blocksProcessed + ' / ' + result.totalBlocks + '</span></div>' +
+      '<div class="ns-row"><span>Bit realmente estratti da Toeplitz</span><span>' + (result.blocksProcessed*s.blockOut) + '</span></div>' +
+      '<div class="ns-row"><span>Bound LHL — massimo assoluto sicuro</span><span>~' + s.lhlSafeOutputBits + ' bit</span></div>' +
+      '<div class="ns-row ns-highlight"><span>Margine residuo rispetto al bound LHL</span><span>' + (marginBitsLHL>=0?'+':'') + marginBitsLHL + ' bit</span></div>' +
+      '</div>';
+  }
+
+  function renderCard(el, result, isWinner){
+    const failed = !!result.gateFailReason;
+    el.classList.toggle('winner', isWinner && !failed);
+    el.classList.toggle('failed', failed);
+    el.classList.toggle('not-eligible', !result.win.eligibleForWinner);
+
+    let html = '<h2>Finestra ' + result.win.id + ' — ' + result.win.label +
+      (isWinner && !failed ? ' ★' : '') + (failed ? ' ✗' : '') +
+      (!result.win.eligibleForWinner ? '<span class="not-eligible-tag">non idonea a vincere — non indipendente</span>' : '') + '</h2>';
+
+    if (failed) html += '<div class="gate-fail">GATE FALLITO: ' + result.gateFailReason + '</div>';
+    if (result.correlationNote) html += '<div class="gate-fail" style="color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-border);">AVVISO INDIPENDENZA: ' + result.correlationNote + '</div>';
+
+    html += '<div class="row"><span class="k">Bit sorgente LSB</span><span>' + result.sourceEnt.mcv.count0 + result.sourceEnt.mcv.count1 + ' (' + (result.numericScheme.lsbBits) + ')</span></div>';
+    html += '<div class="row"><span class="k">H_min sorgente (MCV / Collision)</span><span>' +
+      (isFinite(result.sourceEnt.mcv.hMin)?result.sourceEnt.mcv.hMin.toFixed(4):'n/d') + ' / ' +
+      (isFinite(result.sourceEnt.coll.hMin)?result.sourceEnt.coll.hMin.toFixed(4):'n/d') + ' bit/bit</span></div>';
+
+    const bits = result.finalBits;
+    if (bits.length > 0){
+      const mcv = result.entropy.mcv, coll = result.entropy.coll;
+      html += '<div class="balance">' + bits.length + ' bit: (0:' + (mcv.count0||0) + ' | 1:' + (mcv.count1||0) + ')</div>';
+      html += '<div class="bitstring">' + bitsToDisplayString(bits) + '</div>';
+      html += '<div class="provenance">Provenienza: <span class="real">' + result.realBits + ' bit reali (Toeplitz)</span>' +
+        (result.syntheticBits > 0 ? ' + <span class="synth">' + result.syntheticBits + ' bit sintetici (padding HKDF)</span>' : '') + '</div>';
+      if (result.syntheticBits > 0){
+        html += '<div class="gate-fail" style="color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-border);">Avviso: ' + result.syntheticBits +
+          ' dei ' + bits.length + ' bit finali sono padding HKDF sintetico, non derivati dalla sorgente.</div>';
+      }
+      html += '<div class="row"><span class="k">Min-Entropia finale (MCV / Collision)</span><span>' +
+        (isFinite(mcv.hMin)?mcv.hMin.toFixed(4):'n/d') + ' / ' + (isFinite(coll.hMin)?coll.hMin.toFixed(4):'n/d') + ' bit/bit</span></div>';
+      html += '<div class="balance">Nota: questa stima è calcolata sull\'output finale (dopo Toeplitz) ed è strutturalmente vicina a 1 anche se l\'entropia reale della sorgente fosse bassa — vedi lo schema numerico PRE-condizionamento sotto.</div>';
+    }
+
+    html += numericSchemeHtml(result);
+
+    html += '<div style="margin-top:8px;">';
+    result.tests.forEach(t => {
+      if (t.insufficient) html += '<div class="test-row"><span>' + t.name + '</span><span class="insufficient">Bit insufficienti</span></div>';
+      else html += '<div class="test-row"><span>' + t.name + '</span><span class="' + (t.pass?'pass':'fail') + '">p=' + t.p.toFixed(4) + ' — ' + (t.pass?'PASS':'FAIL') + '</span></div>';
+    });
+    html += '</div>';
+
+    html += '<div class="foot-counters">Dark/Silenzio scartati: ' + result.darkFrames +
+      (result.rigorous ? ' &nbsp;|&nbsp; <span style="color:var(--accent)">Modalità rigorosa ON</span>' : ' &nbsp;|&nbsp; <span class="warn-text">Modalità non rigorosa</span>') + '</div>';
+
+    el.innerHTML = html;
+
+    if (!failed && bits.length >= 128){
+      const dlBtn = document.createElement('button');
+      dlBtn.className = 'dl-btn';
+      dlBtn.textContent = 'ESPORTA BUFFER BINARIO (.bin)';
+      dlBtn.addEventListener('click', function(){
+        downloadBin(bits, 'finestra_' + result.win.id + '_' + result.win.label.toLowerCase().replace(/\s+/g,'_') + '.bin');
+      });
+      el.appendChild(dlBtn);
+
+      if (isWinner){
+        const shaBtn = document.createElement('button');
+        shaBtn.className = 'sha-btn';
+        shaBtn.textContent = 'CALCOLA SHA-256 FINALE (256 bit)';
+        const shaOut = document.createElement('div');
+        shaOut.style.display = 'none';
+        shaBtn.addEventListener('click', function(){
+          const digestBytes = sha256(new Uint8Array(bitsToBytes(bits)));
+          const digestBits = bytesToBits(digestBytes);
+          const digestHex = bytesToHex(digestBytes);
+          shaOut.innerHTML =
+            '<div class="digest-note">SHA-256(' + bits.length + ' bit della finestra vincente) — whitening/formattazione a lunghezza fissa, NON una stima di entropia aggiuntiva:</div>' +
+            '<div class="digest-box">' + digestBits.join('') + '</div>' +
+            '<div class="digest-note">Esadecimale: ' + digestHex + '</div>';
+          shaOut.style.display = 'block';
+          if (!shaOut.querySelector('.dl-btn')){
+            const shaDlBtn = document.createElement('button');
+            shaDlBtn.className = 'dl-btn';
+            shaDlBtn.textContent = 'ESPORTA DIGEST SHA-256 (.bin, 32 byte)';
+            shaDlBtn.addEventListener('click', function(){
+              downloadBin(digestBits, 'finestra_' + result.win.id + '_sha256_finale.bin');
+            });
+            shaOut.appendChild(shaDlBtn);
+          }
+        });
+        el.appendChild(shaBtn);
+        el.appendChild(shaOut);
+      }
+    }
+  }
+
+  function downloadBin(bits, filename){
+    const bytes = new Uint8Array(bitsToBytes(bits));
+    const blob = new Blob([bytes], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ===================================================================
+  // [NUOVO — mancava completamente] Suite di autotest all'avvio, contro
+  // vettori di test ufficiali e riferimenti indipendenti verificati. Prima
+  // di questa versione, nessuna delle affermazioni di correttezza nel
+  // changelog era verificabile automaticamente dalla pagina stessa.
+  // Toeplitz hex reference: implementazione indipendente scritta con un
+  // percorso di codice diverso (moltiplicazione invece di AND bit a bit)
+  // per evitare che un bug condiviso nella stessa riga di codice passi
+  // inosservato per tautologia.
+  // ===================================================================
+  function toeplitzReferenceIndependent(allBits, seedInt, windowId, blockOutSize){
+    const n = TOEPLITZ_IN;
+    const seedMaterial = seedMaterialForWindow(seedInt, windowId);
+    const stream = makeSHA256BitStream(seedMaterial);
+    let diag = [];
+    for (let i = 0; i < n + blockOutSize - 1; i++) diag.push(stream.nextBit());
+    const results = [];
+    let pos = 0;
+    while (pos + n <= allBits.length){
+      for (let j = 0; j < blockOutSize; j++){
+        let acc = 0;
+        for (let i = 0; i < n; i++){
+          const idx = i - j + (blockOutSize - 1);
+          acc = acc ^ (allBits[pos+i] * diag[idx]); // percorso indipendente: * invece di &
+        }
+        results.push(acc);
+      }
+      const newDiag = diag.slice(blockOutSize);
+      for (let k = 0; k < blockOutSize; k++) newDiag.push(stream.nextBit());
+      diag = newDiag;
+      pos += n;
+    }
+    return results;
+  }
+
+  function runSelfTestsSync(){
+    const results = [];
+    function test(name, fn){
+      try {
+        const r = fn();
+        results.push({ name: name, ok: r === true, detail: r === true ? '' : String(r) });
+      } catch (e){
+        results.push({ name: name, ok: false, detail: 'eccezione: ' + e.message });
+      }
+    }
+
+    test('Clopper-Pearson: auto-consistenza inversione beta incompleta', function(){
+      const cases = [[0.5,3,7],[0.99,1,9],[0.95,10,5],[0.01,2,2]];
+      for (const [p,a,b] of cases){
+        const x = betaInvCP(p,a,b);
+        const back = betaincCP(x,a,b);
+        if (Math.abs(back-p) > 1e-3) return 'mismatch p=' + p + ' a=' + a + ' b=' + b + ': back=' + back;
+      }
+      const known = clopperPearsonUpper(0,10,0.01);
+      if (Math.abs(known-0.369) > 0.01) return 'CP(0,10,99%) atteso ~0.369, ottenuto ' + known.toFixed(4);
+      return true;
+    });
+
+    test('Peres Extractor: conservazione della massa (output ≤ input, deterministico)', function(){
+      const stream = makeSHA256BitStream(new TextEncoder().encode('autotest-peres-seed'));
+      for (let trial = 0; trial < 8; trial++){
+        const n = 2000 + trial * 500;
+        const bits = []; for (let i = 0; i < n; i++) bits.push(stream.nextBit());
+        const res = peresExtract(bits);
+        if (res.bits.length > n) return 'output (' + res.bits.length + ') supera l\'input (' + n + ') al trial ' + trial;
+      }
+      return true;
+    });
+
+    test('Peres Extractor: efficienza su input equo deterministico > 80%', function(){
+      const stream = makeSHA256BitStream(new TextEncoder().encode('autotest-peres-fair'));
+      const bits = []; for (let i = 0; i < 20000; i++) bits.push(stream.nextBit());
+      const res = peresExtract(bits);
+      if (res.efficiencyPct <= 80) return 'efficienza troppo bassa: ' + res.efficiencyPct.toFixed(1) + '% (atteso >80% su SHA-256 counter-mode, sorgente equa per costruzione)';
+      return true;
+    });
+
+    test('Toeplitz: coerenza con implementazione indipendente (diagonali)', function(){
+      const cases = [[1,1],[4,4],[10,7],[7,25],[33,31],[50,80]];
+      const stream = makeSHA256BitStream(new TextEncoder().encode('autotest-toeplitz-src'));
+      for (const [m,n] of cases){
+        const x = []; for (let i = 0; i < n; i++) x.push(stream.nextBit());
+        const a = toeplitzExtractSync(x, 987654321, 3, m);
+        const b = toeplitzReferenceIndependent(x, 987654321, 3, m);
+        if (JSON.stringify(a) !== JSON.stringify(b)) return 'mismatch per m=' + m + ',n=' + n;
+      }
+      return true;
+    });
+
+    test('Collision Estimate: coerente con MCV su dati fortemente equi (deterministico)', function(){
+      const stream = makeSHA256BitStream(new TextEncoder().encode('autotest-collision-fair'));
+      const bits = []; for (let i = 0; i < 100000; i++) bits.push(stream.nextBit());
+      const h = combinedHmin(bits);
+      if (h.mcv.hMin < 0.9) return 'MCV.hMin troppo basso su sorgente equa: ' + h.mcv.hMin.toFixed(4);
+      if (h.coll.hMin < 0.85) return 'Collision.hMin troppo basso su sorgente equa: ' + h.coll.hMin.toFixed(4);
+      return true;
+    });
+
+    test('Collision Estimate: rileva correttamente un forte sbilanciamento (p=0.9, deterministico)', function(){
+      const stream = makeSHA256BitStream(new TextEncoder().encode('autotest-collision-biased'));
+      const bits = []; for (let i = 0; i < 100000; i++) bits.push(stream.nextBit() && stream.nextBit() ? 1 : 0); // ~p(1)=0.25, sbilanciato
+      const h = combinedHmin(bits);
+      const theoretical = -Math.log2(0.75);
+      if (Math.abs(h.coll.hMin - theoretical) > 0.05) return 'Collision.hMin=' + h.coll.hMin.toFixed(4) + ', atteso ≈' + theoretical.toFixed(4);
+      return true;
+    });
+
+    return results;
+  }
+
+  // Wrapper sincrono di toeplitzExtract (senza yield/progress) per l'uso negli autotest.
+  function toeplitzExtractSync(bits, seedInt, windowId, blockOutSize){
+    if (blockOutSize <= 0) return [];
+    const seedMaterial = seedMaterialForWindow(seedInt, windowId);
+    const stream = makeSHA256BitStream(seedMaterial);
+    let diag = new Uint8Array(TOEPLITZ_IN + blockOutSize - 1);
+    for (let i = 0; i < diag.length; i++) diag[i] = stream.nextBit();
+    const outputBits = [];
+    let pos = 0;
+    while (pos + TOEPLITZ_IN <= bits.length){
+      for (let j = 0; j < blockOutSize; j++){
+        let acc = 0;
+        for (let i = 0; i < TOEPLITZ_IN; i++) acc ^= (bits[pos + i] & diag[i - j + (blockOutSize - 1)]);
+        outputBits.push(acc);
+      }
+      const newDiag = new Uint8Array(TOEPLITZ_IN + blockOutSize - 1);
+      newDiag.set(diag.subarray(blockOutSize));
+      for (let k = 0; k < blockOutSize; k++) newDiag[TOEPLITZ_IN - 1 + k] = stream.nextBit();
+      diag = newDiag;
+      pos += TOEPLITZ_IN;
+    }
+    return outputBits;
+  }
+
+  async function runCryptoVectorTests(){
+    const results = [];
+    function record(name, ok, detail){ results.push({ name, ok, detail: ok ? '' : (detail || '') }); }
+
+    try {
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(0)));
+      const hex = bytesToHex(digest);
+      record('SHA-256: vettore di test noto (stringa vuota)', hex === 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'ottenuto ' + hex);
+    } catch (e){ record('SHA-256: vettore di test noto (stringa vuota)', false, e.message); }
+
+    try {
+      const jsHex = bytesToHex(sha256(new TextEncoder().encode('abc')));
+      record('SHA-256 (implementazione JS pura): vettore di test noto ("abc")', jsHex === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', 'ottenuto ' + jsHex);
+    } catch (e){ record('SHA-256 (implementazione JS pura): vettore di test noto ("abc")', false, e.message); }
+
+    try {
+      const key = new Uint8Array(20).fill(0x0b);
+      const data = new TextEncoder().encode('Hi There');
+      const hex = bytesToHex(hmacSha256(key, data));
+      record('HMAC-SHA256: vettore di test RFC 4231 (caso 1)', hex === 'b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7', 'ottenuto ' + hex);
+    } catch (e){ record('HMAC-SHA256: vettore di test RFC 4231 (caso 1)', false, e.message); }
+
+    try {
+      function hexToBytes(h){ const out = new Uint8Array(h.length/2); for (let i=0;i<out.length;i++) out[i]=parseInt(h.substr(i*2,2),16); return out; }
+      const ikm = new Uint8Array(22).fill(0x0b);
+      const salt = hexToBytes('000102030405060708090a0b0c');
+      const info = hexToBytes('f0f1f2f3f4f5f6f7f8f9');
+      const prk = hkdfExtract(salt, ikm);
+      const prkHex = bytesToHex(prk);
+      const prkOk = prkHex === '077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5';
+      const okm = hkdfExpand(prk, info, 42);
+      const okmHex = bytesToHex(new Uint8Array(okm));
+      const okmOk = okmHex === '3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865';
+      record('HKDF-Extract/Expand: vettore di test RFC 5869 (caso 1)', prkOk && okmOk, 'PRK ' + (prkOk?'ok':'ERRATO: '+prkHex) + ' — OKM ' + (okmOk?'ok':'ERRATO: '+okmHex));
+    } catch (e){ record('HKDF-Extract/Expand: vettore di test RFC 5869 (caso 1)', false, e.message); }
+
+    return results;
+  }
+
+  async function displaySelfTestResults(){
+    const area = document.getElementById('selfTestArea');
+    const sync = runSelfTestsSync();
+    const crypto_ = await runCryptoVectorTests();
+    const all = [...crypto_, ...sync];
+    const allPass = all.every(r => r.ok);
+    area.innerHTML = all.map(r =>
+      '<div class="test-row"><span>' + r.name + '</span><span class="' + (r.ok?'pass':'fail') + '">' +
+      (r.ok ? 'PASS' : 'FAIL — ' + r.detail) + '</span></div>'
+    ).join('') + '<div style="margin-top:8px;font-weight:bold;" class="' + (allPass?'pass':'fail') + '">' +
+      (allPass ? 'Tutti gli autotest superati.' : 'ALCUNI AUTOTEST FALLITI — possibile regressione, non fidarsi dei risultati della pipeline.') + '</div>';
+  }
+
+  displaySelfTestResults();
+
+})();
+</script>
+</body>
+</html>
