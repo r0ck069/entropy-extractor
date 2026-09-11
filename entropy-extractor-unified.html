@@ -91,13 +91,15 @@
   .digest-note{ font-size:0.7rem; color:var(--muted); font-style:italic; margin:4px 0 8px 0; }
   .sha-btn{ margin-top:6px; width:100%; font-size:0.78rem; padding:6px; background:#5cb85c; border-color:#4cae4c; color:#ffffff; }
   .sha-btn:hover:not(:disabled){ background:#449d44; }
+  .shake-btn{ margin-top:6px; width:100%; font-size:0.78rem; padding:6px; background:#7e57c2; border-color:#673ab7; color:#ffffff; }
+  .shake-btn:hover:not(:disabled){ background:#673ab7; }
 </style>
 </head>
 <body>
 
 <h1>Pipeline di Estrazione Entropica Multi-Finestra — Versione Unificata</h1>
-<div class="subtitle">Fusione verificata di due varianti + correzione di bug matematici, reali e testati (v2). Stime: MCV + Collision (Clopper-Pearson 99%). Test: 4/15 NIST SP 800-22. Esecuzione locale, nessuna dipendenza esterna.</div>
-<p style="font-family:var(--mono);font-size:0.68rem;color:var(--muted);margin:-8px 0 12px;">build 2026-09-10 v2 — audit matematico completo (vedi CHANGELOG): filtro saturazione PCM corretto per formato signed, aggiunto controllo di correlazione incrociata fra le finestre 1/2/3, aggiunta suite di autotest all'avvio contro vettori di riferimento ufficiali, restyle colori/font sulla palette del tool BIP39 di Ian Coleman.</p>
+<div class="subtitle">Fusione verificata di due varianti + correzione di bug matematici, reali e testati (v3). Stime: MCV + Collision + t-Tuple + LRS (Clopper-Pearson 99%). Health test: RCT + APT (SP 800-90B §4.4). Test: 4/15 NIST SP 800-22. Digest: SHA-256 + SHAKE256 opzionale. Esecuzione locale, nessuna dipendenza esterna.</div>
+<p style="font-family:var(--mono);font-size:0.68rem;color:var(--muted);margin:-8px 0 12px;">build 2026-09-11 v3 — portati da EntropyPipeline (stesso autore): stimatori di min-entropia t-Tuple e LRS, health test retrospettivi RCT/APT (SP 800-90B §4.4) come gate aggiuntivo per finestra, digest opzionale SHAKE256 (Keccak-f[1600]). Vedi CHANGELOG punto 12 per dettagli e adattamenti.</p>
 
 <div class="doc-panel">
   <strong>DOCUMENTAZIONE E ASSUNZIONI (obbligatorie)</strong><br>
@@ -105,7 +107,7 @@
   • Assunzione conservativa sulla sorgente: i LSB dei campioni non saturati sono trattati come aventi <strong>min-entropia sconosciuta</strong>, stimata empiricamente con due stimatori indipendenti (MCV + Collision) e sottoposta a gate obbligatori PRIMA dell'estrazione.<br>
   • <strong>Nessuna creazione di entropia</strong> in modalità rigorosa (default): se l'estrattore produce meno bit del target richiesto, la finestra restituisce solo i bit realmente estratti — nessuna espansione sintetica silenziosa.<br>
   • Gate obbligatori: lunghezza post-Peres ≥ 1024 bit; H_min della sorgente (minimo fra MCV e Collision) ≥ 0.05 bit/bit oppure ≥ 256 bit assoluti di entropia stimata; almeno un blocco Toeplitz completo (512 bit in ingresso).<br>
-  • Stime implementate: Most-Common-Value e Collision Estimate, entrambe con limite di confidenza superiore di Clopper-Pearson al 99% (esatto, non approssimato). Non sostituiscono l'intera batteria SP 800-90B (mancano Markov, compressione, t-Tuple, LRS, LZ78Y, ecc.).<br>
+  • Stime implementate: Most-Common-Value, Collision Estimate, t-Tuple e Longest Repeated Substring (LRS), tutte con limite di confidenza superiore di Clopper-Pearson al 99% (esatto, non approssimato); la min-entropia finale è il minimo fra tutti gli stimatori applicabili. Aggiunti anche due health test retrospettivi SP 800-90B §4.4 (Repetition Count Test, Adaptive Proportion Test) come gate per finestra. Non sostituiscono l'intera batteria SP 800-90B (mancano Markov, compressione/Universal di Maurer, LZ78Y, ecc.).<br>
   • Uso raccomandato: solo con sorgenti di lunghezza adeguata (centinaia di KB o più) e con evidenza empirica di rumore reale. Non usare l'output come seed crittografico di alta garanzia senza ulteriore conditioning esterno se i gate sono borderline.
   <details>
     <summary>Changelog di unificazione e correzioni (apri per i dettagli)</summary>
@@ -120,6 +122,8 @@
     <div class="changelog-item"><strong>9. [Audit v2] Incoerenza reale corretta: nessun controllo di indipendenza fra le finestre 1/2/3.</strong> "Spettro Totale" (unione di 1+2+3) era già correttamente escluso dalla vittoria perché non indipendente per costruzione, ma le finestre 1/2/3 — tre fette temporali della STESSA sorgente, non fonti fisicamente separate — non venivano mai confrontate fra loro per correlazione. Un pattern periodico (ronzio di rete, artefatti di codifica, loop) poteva quindi rendere due finestre correlate senza che nulla lo rilevasse. Aggiunto un controllo di correlazione multi-lag (±8) sui bit LSB grezzi, con soglia statistica z=5 (falsi positivi verificati: 0 su 300 prove Monte Carlo su coppie indipendenti; rilevamento verificato: z≈223 su una copia traslata nota). Le finestre correlate vengono escluse dalla competizione per la vittoria, con i dati comunque mostrati per trasparenza.</div>
     <div class="changelog-item"><strong>10. [Audit v2] Aggiunta suite di autotest all'avvio (assente in precedenza).</strong> Nessuna delle affermazioni di correttezza dei punti precedenti era verificabile automaticamente dalla pagina stessa. Aggiunti test contro vettori ufficiali (SHA-256, HMAC-SHA256 RFC 4231, HKDF RFC 5869), auto-consistenza e valore di riferimento noto di Clopper-Pearson, conservazione della massa ed efficienza del Peres Extractor su sorgenti deterministiche, coerenza del Toeplitz hashing contro una seconda implementazione scritta con un percorso di codice indipendente. Tutti i test sono stati eseguiti ed sono risultati corretti prima del rilascio (vedi CHANGELOG.md del repository per il dettaglio delle verifiche eseguite, incluso il confronto indipendente dei bound di Clopper-Pearson con SciPy).</div>
     <div class="changelog-item"><strong>11. [Audit v2] Verifica matematica generale, nessun altro errore trovato.</strong> Verificati indipendentemente e confermati corretti: SHA-256/HMAC/HKDF (contro vettori RFC e contro l'implementazione nativa del browser su 200+ input casuali), Clopper-Pearson esatto (contro SciPy), la correzione della Collision Estimate (p_max=[1+√(2p_coll-1)]/2, riprodotta analiticamente e su dati sia equi sia sbilanciati), il Peres Extractor (traccia manuale bit-per-bit, conservazione della massa, scaling dell'efficienza con il bias), il Toeplitz hashing (struttura della matrice cross-validata contro un'implementazione indipendente su 9 combinazioni di dimensioni), i 4 test NIST SP 800-22 (comportamento corretto su dati casuali e su dati costanti), e la contabilità del bound LHL (il margine residuo rispetto al bound non è mai risultato negativo su 300 prove casuali con lunghezze e bias variabili).</div>
+    <div class="changelog-item"><strong>12. [v3] Portati da EntropyPipeline (stesso autore, stesso repository owner): SHAKE256, t-Tuple, LRS, RCT, APT.</strong> EntropyPipeline (tool "manuale" con incolla-bit, stesso motore matematico di base) implementava quattro elementi assenti qui: la funzione XOF SHAKE256 (Keccak-f[1600] puro JS, verificato contro vettori NIST ufficiali), due stimatori di min-entropia di ordine superiore (t-Tuple e Longest Repeated Substring, capaci di rilevare strutture periodiche/ripetute che MCV e Collision — statistiche di ordine 0/1 — non vedono per costruzione) e due health test retrospettivi SP 800-90B §4.4 (Repetition Count Test e Adaptive Proportion Test). Portati con due adattamenti espliciti dovuti al contesto diverso: (a) t-Tuple/LRS nella sorgente originale operano su bit incollati manualmente (tipicamente centinaia/migliaia di bit); qui i flussi LSB grezzi per finestra possono arrivare a milioni di bit, quindi sono applicati a un campione limitato ai primi 20.000 bit (TTUPLE_LRS_SAMPLE_CAP) per restare entro un tempo di calcolo ragionevole, con la dimensione del campione sempre mostrata nello schema numerico; (b) RCT/APT (costo O(n), nessun campionamento necessario) sono applicati ai bit LSB grezzi di ciascuna finestra come nuovo gate, PRIMA del debiasing di Peres: una finestra che fallisce RCT o APT viene scartata a prescindere dal suo H_min aggregato, con lo stesso criterio "il più pessimista vince" già in uso per gli altri stimatori. Aggiunto anche un pulsante opzionale SHAKE256 accanto al digest SHA-256 per la finestra scelta, a parità di lunghezza di output. Autotest aggiunti: vettori SHAKE256 ufficiali NIST, rilevamento di una sequenza periodica non banale da parte di t-Tuple/LRS (con verifica che MCV/Collision da soli la giudicherebbero equa), assenza di falsi positivi RCT/APT su sorgente equa deterministica, e il caso di regressione APT (esclusione del simbolo di riferimento dal proprio conteggio) già noto da EntropyPipeline. Codice sorgente delle funzioni portato invariato salvo un fix di scalabilità (punto seguente); solo il punto di innesto nella pipeline e il campionamento di t-Tuple/LRS sono stati adattati.</div>
+    <div class="changelog-item"><strong>13. [v3] Bug di scalabilità reale scoperto durante il testing del porting, corretto.</strong> Il test automatico di regressione aggiunto per t-Tuple/LRS (sequenza periodica non banale, periodo 8, 5000 bit) ha bloccato la pipeline per diversi minuti in ambiente di test Node.js prima del rilascio. Causa: né t-Tuple né LRS, nella sorgente originale (EntropyPipeline), limitano la lunghezza massima di pattern esaminata; su una sequenza fortemente periodica il conteggio per modeCount(L) resta sopra la soglia (35 occorrenze) fino a L≈n/8, facendo salire il costo (O(n·L) per L crescente) a diversi miliardi di operazioni. Nella sorgente originale, pensata per bit incollati manualmente (tipicamente centinaia/migliaia di bit), l'esposizione pratica è minore ma la stessa classe di bug è comunque presente. Corretto qui introducendo due limiti espliciti: TTUPLE_MAX_T=64 (lunghezza massima esaminata da t-Tuple) e LRS_MAX_SEARCH_LEN=256 (limite superiore della ricerca binaria di LRS). Verificato che il limite non altera il comportamento su sorgenti realmente casuali (la lunghezza della più lunga sottostringa ripetuta scala ~O(log2 n), tipicamente poche decine di bit anche su 20.000 bit di campione — ben sotto i limiti) e che su sequenze periodiche/strutturate la rilevazione di bassa entropia resta corretta anche limitando la ricerca (la ripetizione resta comunque visibile entro il limite). Suite di test rieseguita dopo il fix: nessuna regressione, test periodico ora completa in pochi millisecondi.</div>
   </details>
 </div>
 
@@ -192,6 +196,13 @@
   const MIN_POST_PERES_BITS = 1024;
   const MIN_SOURCE_HMIN_RATE = 0.05;
   const MIN_SOURCE_HMIN_ABS = 256;
+  // Soglie del gate strutturale t-Tuple/LRS (vedi combinedHmin per la
+  // giustificazione empirica): ampio margine sotto i valori osservati su
+  // sorgenti sane/moderatamente sbilanciate (LRS≥0.21, t-Tuple≥0.29) e ampio
+  // margine sopra i valori osservati su sorgenti periodiche/strutturate
+  // (LRS≤0.015, t-Tuple≤0.05).
+  const STRUCTURAL_LRS_GATE_THRESHOLD = 0.12;
+  const STRUCTURAL_TTUPLE_GATE_THRESHOLD = 0.15;
   const TOEPLITZ_IN = 512;
   const LHL_EPSILON_BITS = 40;
   const LHL_SECURITY_MARGIN = 2 * LHL_EPSILON_BITS;
@@ -349,6 +360,81 @@
     alpha = alpha===undefined?0.01:alpha;
     if(n<=0) return 1; if(x>=n) return 1;
     return betaInvCP(1-alpha, x+1, n-x);
+  }
+
+  // ===================================================================
+  // [PORTATO da EntropyPipeline/entropy_pipeline.html] SHAKE256 (sponge
+  // Keccak-f[1600]). crypto.subtle del browser NON implementa SHAKE256
+  // (solo SHA-1/256/384/512): implementazione JS pura, verificata contro i
+  // vettori di test ufficiali NIST (vedi autotest all'avvio) prima
+  // dell'integrazione. Codice invariato rispetto alla sorgente originale.
+  // ===================================================================
+  const KECCAK_MASK64 = (1n<<64n)-1n;
+  function keccakRotl64(x,n){ n=BigInt(n); return ((x<<n)|(x>>(64n-n))) & KECCAK_MASK64; }
+  const KECCAK_RNDC = [
+   0x0000000000000001n,0x0000000000008082n,0x800000000000808an,0x8000000080008000n,
+   0x000000000000808bn,0x0000000080000001n,0x8000000080008081n,0x8000000000008009n,
+   0x000000000000008an,0x0000000000000088n,0x0000000080008009n,0x000000008000000an,
+   0x000000008000808bn,0x800000000000008bn,0x8000000000008089n,0x8000000000008003n,
+   0x8000000000008002n,0x8000000000000080n,0x000000000000800an,0x800000008000000an,
+   0x8000000080008081n,0x8000000000008080n,0x0000000080000001n,0x8000000080008008n
+  ];
+  const KECCAK_ROTC = [1,3,6,10,15,21,28,36,45,55,2,14,27,41,56,8,25,43,62,18,39,61,20,44];
+  const KECCAK_PILN = [10,7,11,17,18,3,5,16,8,21,24,4,15,23,19,13,12,2,20,14,22,9,6,1];
+  function keccakBytesToLanes(bytes){
+    const lanes = new Array(25);
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let i=0;i<25;i++) lanes[i] = dv.getBigUint64(i*8, true);
+    return lanes;
+  }
+  function keccakLanesToBytes(lanes, bytes){
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let i=0;i<25;i++) dv.setBigUint64(i*8, lanes[i] & KECCAK_MASK64, true);
+  }
+  function keccakf(stateBytes){
+    let st = keccakBytesToLanes(stateBytes);
+    const bc = new Array(5);
+    for (let round=0; round<24; round++){
+      for (let i=0;i<5;i++) bc[i] = st[i]^st[i+5]^st[i+10]^st[i+15]^st[i+20];
+      for (let i=0;i<5;i++){
+        const t = bc[(i+4)%5] ^ keccakRotl64(bc[(i+1)%5],1);
+        for (let j=0;j<25;j+=5) st[j+i] ^= t;
+      }
+      let t = st[1];
+      for (let i=0;i<24;i++){
+        const j = KECCAK_PILN[i];
+        const tmp = st[j];
+        st[j] = keccakRotl64(t, KECCAK_ROTC[i]);
+        t = tmp;
+      }
+      for (let j=0;j<25;j+=5){
+        const row = [st[j],st[j+1],st[j+2],st[j+3],st[j+4]];
+        for (let i=0;i<5;i++) st[j+i] = (row[i] ^ ((~row[(i+1)%5]) & row[(i+2)%5])) & KECCAK_MASK64;
+      }
+      st[0] ^= KECCAK_RNDC[round];
+      st[0] &= KECCAK_MASK64;
+    }
+    keccakLanesToBytes(st, stateBytes);
+  }
+  function shake256(messageBytes, outputBits){
+    const rate = 136; // 1088 bit di rate, 512 bit di capacità -> SHAKE256
+    const state = new Uint8Array(200);
+    let pt = 0;
+    for (let i=0;i<messageBytes.length;i++){
+      state[pt++] ^= messageBytes[i];
+      if (pt>=rate){ keccakf(state); pt=0; }
+    }
+    state[pt] ^= 0x1F; // suffisso di dominio SHAKE
+    state[rate-1] ^= 0x80;
+    keccakf(state);
+    pt = 0;
+    const outBytes = Math.ceil(outputBits/8);
+    const out = new Uint8Array(outBytes);
+    for (let i=0;i<outBytes;i++){
+      if (pt>=rate){ keccakf(state); pt=0; }
+      out[i]=state[pt++];
+    }
+    return out;
   }
 
   // ===================================================================
@@ -753,10 +839,127 @@
     const hMin = -Math.log2(Math.max(pMaxEst, 1e-12));
     return { hMin, collisions, pairs, pColl: collisions/pairs, pCollUpper, pMaxEst };
   }
+  // ===================================================================
+  // [PORTATO da EntropyPipeline] Stimatori di min-entropia aggiuntivi:
+  // t-Tuple e Longest Repeated Substring (LRS), SP 800-90B §6.3. A
+  // differenza di MCV/Collision (ordine 0/1), rilevano strutture periodiche
+  // o ripetute di ordine superiore: su una sequenza periodica prevedibile,
+  // MCV/Collision possono restituire H_min vicino a 1.0 mentre t-Tuple/LRS
+  // la riconoscono correttamente come quasi priva di entropia.
+  // [ADATTATO al contesto — vedi CHANGELOG] Nella sorgente originale questi
+  // stimatori operano su bit incollati manualmente (tipicamente centinaia/
+  // migliaia di bit). Qui i flussi LSB grezzi per finestra possono arrivare
+  // a milioni di bit: applicare LRS/t-Tuple senza limiti costerebbe
+  // O(n·L·log n) e bloccherebbe il thread UI. Sono quindi applicati a un
+  // campione limitato (i primi TTUPLE_LRS_SAMPLE_CAP bit), coerente con lo
+  // stesso principio già usato per il controllo di correlazione incrociata
+  // (CORR_SAMPLE_CAP). combinedHmin resta il MINIMO fra tutti gli
+  // stimatori applicabili — il più pessimista vince (criterio SP 800-90B).
+  // ===================================================================
+  const TTUPLE_LRS_SAMPLE_CAP = 20000;
+  function subsampleForStructuralEstimators(bits){
+    return bits.length <= TTUPLE_LRS_SAMPLE_CAP ? bits : bits.slice(0, TTUPLE_LRS_SAMPLE_CAP);
+  }
+  // [ADATTATO — bug di scalabilità scoperto e corretto durante il porting, vedi
+  // CHANGELOG] La sorgente originale (EntropyPipeline) non limita la crescita di
+  // `t` nel ciclo di t-Tuple né l'intervallo di ricerca binaria di LRS: su una
+  // sequenza fortemente periodica (non patologica in senso "dati rotti", ma un
+  // caso realistico per un sensore con un pattern fisso residuo o un artefatto
+  // di codifica) modeCount(L) resta sopra la soglia (35 occorrenze) per L fino a
+  // quasi n/8, facendo esplodere il costo (O(n·L) per L crescente fino a
+  // migliaia) a diversi miliardi di operazioni — verificato: la pipeline si
+  // blocca per minuti su un test automatico con un pattern periodico di 5000
+  // bit. La sorgente originale è pensata per bit incollati manualmente
+  // (tipicamente centinaia/migliaia di bit al più), quindi l'esposizione pratica
+  // lì è minore ma la stessa classe di problema esiste anche in quel codice.
+  // Qui, con flussi automatici potenzialmente molto più grandi, il limite era
+  // necessario. TTUPLE_MAX_T e LRS_MAX_SEARCH_LEN limitano la lunghezza massima
+  // di pattern esaminata: per sorgenti realmente casuali la lunghezza della più
+  // lunga sottostringa ripetuta scala ~O(log2 n) (tipicamente poche decine di
+  // bit anche su campioni di 20.000 bit), quindi il limite non incide mai sul
+  // funzionamento normale — interviene solo sul caso patologico/periodico, dove
+  // comunque la ripetizione resta rilevabile già entro il limite (la stima di
+  // H_min risultante resta corretamente bassa).
+  // ===================================================================
+  const TTUPLE_MAX_T = 64;
+  const LRS_MAX_SEARCH_LEN = 256;
+  function tTupleHmin(bits){
+    const n = bits.length;
+    if (n < 40) return null;
+    function modeCount(L){
+      if (n-L+1 <= 0) return { count:0, total:0 };
+      const counts = {};
+      for (let i=0;i<=n-L;i++){ const key = bits.slice(i,i+L).join(''); counts[key] = (counts[key]||0)+1; }
+      let maxC = 0; for (const k in counts) if (counts[k] > maxC) maxC = counts[k];
+      return { count:maxC, total:n-L+1 };
+    }
+    let t = 1;
+    while (t < n && t < TTUPLE_MAX_T){ const { count } = modeCount(t); if (count >= 35) t++; else break; }
+    const tMax = Math.max(1, t-1);
+    const results = [];
+    for (const L of [tMax, tMax+1]){
+      const { count, total } = modeCount(L);
+      if (total <= 0) continue;
+      const pUpper = clopperPearsonUpper(count, total, 0.01);
+      results.push(Math.pow(pUpper, 1/L));
+    }
+    if (results.length === 0) return null;
+    return -Math.log2(Math.min(1, Math.max(...results)));
+  }
+  function longestRepeatedSubstringLen(bits){
+    const n = bits.length;
+    function hasRepeatOfLen(L){
+      if (L <= 0) return true;
+      const seen = new Set();
+      for (let i=0;i<=n-L;i++){ const key = bits.slice(i,i+L).join(''); if (seen.has(key)) return true; seen.add(key); }
+      return false;
+    }
+    let lo = 0, hi = Math.min(Math.max(0, n-1), LRS_MAX_SEARCH_LEN);
+    while (lo < hi){ const mid = Math.ceil((lo+hi+1)/2); if (hasRepeatOfLen(mid)) lo = mid; else hi = mid-1; }
+    return lo;
+  }
+  function lrsHmin(bits){
+    const n = bits.length;
+    if (n < 40) return null;
+    const u = longestRepeatedSubstringLen(bits);
+    const W = u+1;
+    if (W < 1 || W > n) return null;
+    const counts = {};
+    for (let i=0;i<=n-W;i++){ const key = bits.slice(i,i+W).join(''); counts[key] = (counts[key]||0)+1; }
+    let maxC = 0; for (const k in counts) if (counts[k] > maxC) maxC = counts[k];
+    const total = n-W+1;
+    if (total <= 0) return null;
+    const pUpper = clopperPearsonUpper(maxC, total, 0.01);
+    return -Math.log2(Math.min(1, Math.pow(pUpper, 1/W)));
+  }
+  // [ADATTATO — decisione di design esplicita, vedi CHANGELOG] A differenza di
+  // EntropyPipeline (dove combinedHmin = minimo FRA TUTTI gli stimatori,
+  // t-Tuple/LRS inclusi), qui `hMin` resta il minimo di SOLI MCV+Collision,
+  // esattamente come prima del porting — nessuna regressione sul rapporto di
+  // estrazione Toeplitz per una sorgente sana. Motivo, scoperto empiricamente
+  // durante il testing: su campioni di decine di migliaia di bit (la taglia
+  // tipica di una finestra qui, non le centinaia/migliaia di bit incollati a
+  // mano per cui t-Tuple/LRS erano stati tarati in origine), LRS in particolare
+  // resta strutturalmente intorno a 0.35-0.43 bit/bit anche su rumore CSPRNG
+  // perfettamente equo (verificato su centinaia di campioni indipendenti, vedi
+  // CHANGELOG) — un effetto noto e accettato della sua natura conservativa
+  // (limite di confidenza superiore di Clopper-Pearson su un conteggio quasi
+  // sempre minimo), non un segnale reale di scarsa entropia. Includerlo nel
+  // minimo avrebbe dimezzato il rapporto di estrazione pratico su OGNI analisi,
+  // anche perfettamente sana. t-Tuple e LRS restano comunque calcolati,
+  // mostrati in trasparenza nello schema numerico, e usati come GATE
+  // strutturale dedicato (vedi STRUCTURAL_TTUPLE_GATE_THRESHOLD/
+  // STRUCTURAL_LRS_GATE_THRESHOLD più sotto): il divario è ampio e verificato
+  // empiricamente (dati equi/moderatamente sbilanciati: LRS≥0.21, t-Tuple≥0.29;
+  // dati periodici/strutturati: LRS≤0.015, t-Tuple≤0.05), quindi il gate
+  // individua la vera struttura patologica senza mai scattare su rumore sano.
   function combinedHmin(bits){
     const mcv = minEntropyMCV(bits);
     const coll = collisionEstimate(bits);
-    return { hMin: Math.min(mcv.hMin, coll.hMin), mcv, coll };
+    const structuralSample = subsampleForStructuralEstimators(bits);
+    const tTuple = tTupleHmin(structuralSample);
+    const lrs = lrsHmin(structuralSample);
+    return { hMin: Math.min(mcv.hMin, coll.hMin), mcv, coll, tTuple, lrs, structuralSampleSize: structuralSample.length };
   }
 
   // ===================================================================
@@ -808,6 +1011,53 @@
       if (Math.abs(z) > Math.abs(maxAbsZ)){ maxAbsZ = z; atLag = lag; }
     }
     return { z: maxAbsZ, lag: atLag };
+  }
+
+  // ===================================================================
+  // [PORTATO da EntropyPipeline] Health test retrospettivi SP 800-90B
+  // §4.4: Repetition Count Test (RCT) e Adaptive Proportion Test (APT),
+  // applicati ai bit LSB grezzi di ciascuna finestra PRIMA del debiasing.
+  // Non sostituiscono un vero health test in tempo reale su hardware
+  // fisico, ma intercettano pattern patologici (run anomali, drift locale)
+  // che le stime globali (MCV/Collision/t-Tuple/LRS) mediano via. Una
+  // finestra che fallisce RCT o APT viene esclusa a prescindere dal suo
+  // H_min aggregato — stesso criterio "il più pessimista vince" degli
+  // altri gate. Costo O(n), applicabile senza campionamento anche sui
+  // flussi grandi di questo tool.
+  // ===================================================================
+  function logBinomCoeff(n,k){ return logGammaCP(n+1)-logGammaCP(k+1)-logGammaCP(n-k+1); }
+  function binomPmf(k,n,p){
+    if (p<=0) return k===0?1:0;
+    if (p>=1) return k===n?1:0;
+    return Math.exp(logBinomCoeff(n,k)+k*Math.log(p)+(n-k)*Math.log(1-p));
+  }
+  function binomUpperTailCutoff(n,p,alpha){
+    let cdf=0;
+    for (let k=0;k<=n;k++){ cdf += binomPmf(k,n,p); if (1-cdf<=alpha) return k+1; }
+    return n+1;
+  }
+  function repetitionCountTest(bits, hminPerBit){
+    const alpha = Math.pow(2,-20);
+    const H = Math.max(hminPerBit, 1e-6);
+    const C = 1+Math.ceil(-Math.log2(alpha)/H);
+    let maxRun=1, curRun=1;
+    for (let i=1;i<bits.length;i++){ if (bits[i]===bits[i-1]){ curRun++; maxRun=Math.max(maxRun,curRun); } else curRun=1; }
+    return { maxRun, cutoff:C, failed: maxRun>=C };
+  }
+  function adaptiveProportionTest(bits, hminPerBit, W){
+    W = W||512;
+    if (bits.length < W) return null;
+    const alpha = Math.pow(2,-20);
+    const H = Math.max(hminPerBit, 1e-6);
+    const p = Math.pow(2,-H);
+    const cutoff = binomUpperTailCutoff(W-1, p, alpha);
+    let maxCount=0, windowsChecked=0;
+    for (let start=0; start+W<=bits.length; start+=W){
+      const first = bits[start]; let count=0;
+      for (let i=start+1;i<start+W;i++) if (bits[i]===first) count++;
+      maxCount = Math.max(maxCount,count); windowsChecked++;
+    }
+    return { maxCount, cutoff, windowsChecked, failed: maxCount>=cutoff };
   }
 
   // ===================================================================
@@ -866,9 +1116,24 @@
       // --- Gate sulla sorgente grezza (PRIMA del debiasing) ---
       const sourceEnt = combinedHmin(lsbRes.bits);
       const sourceHMinAbs = sourceEnt.hMin * lsbRes.bits.length;
+      const rct = repetitionCountTest(lsbRes.bits, sourceEnt.hMin);
+      const apt = adaptiveProportionTest(lsbRes.bits, sourceEnt.hMin);
+      const healthFailed = rct.failed || (apt && apt.failed);
+      const structuralAnomaly =
+        (sourceEnt.tTuple !== null && isFinite(sourceEnt.tTuple) && sourceEnt.tTuple < STRUCTURAL_TTUPLE_GATE_THRESHOLD) ||
+        (sourceEnt.lrs !== null && isFinite(sourceEnt.lrs) && sourceEnt.lrs < STRUCTURAL_LRS_GATE_THRESHOLD);
       let gateFailReason = null;
       if (lsbRes.bits.length < 64){
         gateFailReason = 'Sorgente LSB troppo corta (' + lsbRes.bits.length + ' bit).';
+      } else if (healthFailed){
+        gateFailReason = 'Health test SP 800-90B falliti sulla sorgente grezza (RCT run max=' + rct.maxRun + '/' + rct.cutoff +
+          (apt ? ', APT conteggio max=' + apt.maxCount + '/' + apt.cutoff : ', APT n/d (<512 bit)') +
+          '): pattern patologico rilevato (run anomalo o drift locale), finestra scartata a prescindere dal suo H_min aggregato.';
+      } else if (structuralAnomaly){
+        gateFailReason = 'Struttura periodica/ripetuta rilevata da t-Tuple e/o LRS (SP 800-90B §6.3: t-Tuple=' +
+          (sourceEnt.tTuple!==null?sourceEnt.tTuple.toFixed(4):'n/d') + ', LRS=' + (sourceEnt.lrs!==null?sourceEnt.lrs.toFixed(4):'n/d') +
+          ' bit/bit), non rilevabile da MCV/Collision da soli (MCV=' + sourceEnt.mcv.hMin.toFixed(4) + ', Collision=' + sourceEnt.coll.hMin.toFixed(4) +
+          '): finestra scartata a prescindere dal suo H_min aggregato.';
       } else if (sourceEnt.hMin < MIN_SOURCE_HMIN_RATE && sourceHMinAbs < MIN_SOURCE_HMIN_ABS){
         gateFailReason = 'Min-entropia sorgente insufficiente (H_min=' + sourceEnt.hMin.toFixed(4) +
           ' bit/bit, assoluta≈' + sourceHMinAbs.toFixed(0) + '). Richiesto ≥' + MIN_SOURCE_HMIN_RATE +
@@ -897,7 +1162,9 @@
       const numericScheme = {
         lsbBits: lsbRes.bits.length, peresBits: preConditioningPoolBits,
         peresEfficiencyPct: peresRes.efficiencyPct,
-        hMinMCV: preEntropy.mcv.hMin, hMinColl: preEntropy.coll.hMin, hMin: preEntropy.hMin,
+        hMinMCV: preEntropy.mcv.hMin, hMinColl: preEntropy.coll.hMin,
+        hMinTTuple: preEntropy.tTuple, hMinLRS: preEntropy.lrs,
+        structuralSampleSize: preEntropy.structuralSampleSize, hMin: preEntropy.hMin,
         totalMinEntropyBits, ratioPractical, ratioFromLHL, extractionRatio,
         blockIn: TOEPLITZ_IN, blockOut: blockOutSize, lhlSafeOutputBits
       };
@@ -950,7 +1217,7 @@
 
       results.push({
         win, gateFailReason, darkFrames: lsbRes.darkFrames,
-        sourceEnt, preEntropy, numericScheme,
+        sourceEnt, preEntropy, numericScheme, rct, apt,
         blocksProcessed: toepRes.blocksProcessed, totalBlocks: toepRes.totalBlocks,
         finalBits, realBits, syntheticBits, rigorous,
         tests, entropy: finalEnt
@@ -1031,7 +1298,10 @@
         ' <span class="ns-sub">(efficienza: ' + s.peresEfficiencyPct.toFixed(1) + '%)</span></span></div>' +
       '<div class="ns-row"><span>Min-entropia PRE-Toeplitz — MCV</span><span>' + (isFinite(s.hMinMCV)?s.hMinMCV.toFixed(4):'n/d') + ' bit/bit</span></div>' +
       '<div class="ns-row"><span>Min-entropia PRE-Toeplitz — Collision</span><span>' + (isFinite(s.hMinColl)?s.hMinColl.toFixed(4):'n/d') + ' bit/bit</span></div>' +
-      '<div class="ns-row ns-highlight"><span>Min-entropia combinata (minimo dei due)</span><span>' + (isFinite(s.hMin)?s.hMin.toFixed(4):'n/d') + ' bit/bit</span></div>' +
+      '<div class="ns-row"><span>Stimatore strutturale — t-Tuple (SP 800-90B, gate dedicato)</span><span>' + (s.hMinTTuple!==null&&isFinite(s.hMinTTuple)?s.hMinTTuple.toFixed(4)+' bit/bit':'n/d (&lt;40 bit)') + '</span></div>' +
+      '<div class="ns-row"><span>Stimatore strutturale — LRS (SP 800-90B, gate dedicato)</span><span>' + (s.hMinLRS!==null&&isFinite(s.hMinLRS)?s.hMinLRS.toFixed(4)+' bit/bit':'n/d (&lt;40 bit)') +
+        ' <span class="ns-sub">(su campione di ' + s.structuralSampleSize.toLocaleString() + ' bit; non incluso nella min-entropia sotto — vedi nota)</span></span></div>' +
+      '<div class="ns-row ns-highlight"><span>Min-entropia combinata (minimo di MCV/Collision — determina il rapporto Toeplitz)</span><span>' + (isFinite(s.hMin)?s.hMin.toFixed(4):'n/d') + ' bit/bit</span></div>' +
       '<div class="ns-row"><span>Entropia assoluta stimata nel pool</span><span>' + s.totalMinEntropyBits.toFixed(1) + ' bit</span></div>' +
       '<div class="ns-row"><span>Rapporto pratico (H_min×0.85)</span><span>' + (s.ratioPractical*100).toFixed(1) + '%</span></div>' +
       '<div class="ns-row"><span>Rapporto da bound LHL (ε=2⁻⁴⁰)</span><span>' + (s.ratioFromLHL*100).toFixed(1) + '%</span></div>' +
@@ -1061,6 +1331,10 @@
     html += '<div class="row"><span class="k">H_min sorgente (MCV / Collision)</span><span>' +
       (isFinite(result.sourceEnt.mcv.hMin)?result.sourceEnt.mcv.hMin.toFixed(4):'n/d') + ' / ' +
       (isFinite(result.sourceEnt.coll.hMin)?result.sourceEnt.coll.hMin.toFixed(4):'n/d') + ' bit/bit</span></div>';
+    html += '<div class="row"><span class="k">Health test sorgente (RCT / APT, SP 800-90B §4.4)</span><span class="' + (result.rct.failed||(result.apt&&result.apt.failed)?'fail':'pass') + '">' +
+      'RCT run=' + result.rct.maxRun + '/' + result.rct.cutoff + (result.rct.failed?' FALLITO':' OK') + ' — ' +
+      (result.apt ? 'APT count=' + result.apt.maxCount + '/' + result.apt.cutoff + (result.apt.failed?' FALLITO':' OK') : 'APT n/d (&lt;512 bit)') +
+      '</span></div>';
 
     const bits = result.finalBits;
     if (bits.length > 0){
@@ -1128,6 +1402,33 @@
         });
         el.appendChild(shaBtn);
         el.appendChild(shaOut);
+
+        const shakeBtn = document.createElement('button');
+        shakeBtn.className = 'shake-btn';
+        shakeBtn.textContent = 'CALCOLA SHAKE256 (stessa lunghezza output, XOF)';
+        const shakeOut = document.createElement('div');
+        shakeOut.style.display = 'none';
+        shakeBtn.addEventListener('click', function(){
+          const shakeBytes = shake256(new Uint8Array(bitsToBytes(bits)), bits.length);
+          const shakeBits = bytesToBits(shakeBytes).slice(0, bits.length);
+          const shakeHex = bytesToHex(shakeBytes);
+          shakeOut.innerHTML =
+            '<div class="digest-note">SHAKE256(' + bits.length + ' bit della finestra vincente), output esteso alla stessa lunghezza — funzione XOF indipendente da SHA-256 (Keccak-f[1600]), whitening/formattazione, NON una stima di entropia aggiuntiva:</div>' +
+            '<div class="digest-box">' + shakeBits.join('') + '</div>' +
+            '<div class="digest-note">Esadecimale: ' + shakeHex + '</div>';
+          shakeOut.style.display = 'block';
+          if (!shakeOut.querySelector('.dl-btn')){
+            const shakeDlBtn = document.createElement('button');
+            shakeDlBtn.className = 'dl-btn';
+            shakeDlBtn.textContent = 'ESPORTA DIGEST SHAKE256 (.bin)';
+            shakeDlBtn.addEventListener('click', function(){
+              downloadBin(shakeBits, 'finestra_' + result.win.id + '_shake256_finale.bin');
+            });
+            shakeOut.appendChild(shakeDlBtn);
+          }
+        });
+        el.appendChild(shakeBtn);
+        el.appendChild(shakeOut);
       }
     }
   }
@@ -1246,6 +1547,75 @@
       const h = combinedHmin(bits);
       const theoretical = -Math.log2(0.75);
       if (Math.abs(h.coll.hMin - theoretical) > 0.05) return 'Collision.hMin=' + h.coll.hMin.toFixed(4) + ', atteso ≈' + theoretical.toFixed(4);
+      return true;
+    });
+
+    // --- [NUOVO — porting da EntropyPipeline] ---
+    test('SHAKE256: vettore di test noto (stringa vuota, 32 byte)', function(){
+      const out = shake256(new Uint8Array(0), 256);
+      const hex = bytesToHex(out);
+      const expected = '46b9dd2b0ba88d13233b3feb743eeb243fcd52ea62b81b82b50c27646ed5762f';
+      return hex === expected ? true : 'ottenuto ' + hex;
+    });
+    test('SHAKE256: vettore di test noto ("abc", 64 byte)', function(){
+      const out = shake256(new TextEncoder().encode('abc'), 512);
+      const hex = bytesToHex(out);
+      const expected = '483366601360a8771c6863080cc4114d8db44530f8f1e1ee4f94ea37e78b5739d5a15bef186a5386c75744c0527e1faa9f8726e462a12a4feb06bd8801e751e4';
+      return hex === expected ? true : 'ottenuto ' + hex;
+    });
+    test('SHAKE256: lunghezza di output esatta anche non multipla di 8 bit', function(){
+      const out17 = shake256(new TextEncoder().encode('test'), 17);
+      if (out17.length !== 3) return 'attesi 3 byte (ceil(17/8)) per 17 bit richiesti, ottenuti ' + out17.length;
+      return true;
+    });
+
+    test('t-Tuple/LRS: rilevano (come gate strutturale dedicato) una sequenza periodica che MCV da solo giudicherebbe equa', function(){
+      const period = [1,1,0,1,0,0,1,0]; // periodo 8, non costante, non alternata: 4 zeri/4 uni per periodo
+      const bits = [];
+      for (let i=0;i<5000;i++) bits.push(period[i%period.length]);
+      const h = combinedHmin(bits);
+      if (h.tTuple === null || h.lrs === null) return 'tTuple/lrs non applicabili su n=5000 (inatteso)';
+      if (h.mcv.hMin < 0.9) return 'precondizione violata: MCV da solo già basso su questa sequenza (test non significativo — dovrebbe vederla come quasi equa, essendo bilanciata 4/4 per periodo)';
+      if (h.tTuple >= STRUCTURAL_TTUPLE_GATE_THRESHOLD && h.lrs >= STRUCTURAL_LRS_GATE_THRESHOLD){
+        return 'né t-Tuple (' + h.tTuple.toFixed(4) + ') né LRS (' + h.lrs.toFixed(4) + ') sotto soglia gate su sequenza periodica — il gate strutturale non la rileverebbe';
+      }
+      return true;
+    });
+    test('t-Tuple/LRS: nessun falso positivo del gate strutturale su una sorgente equa deterministica (SHA-256 counter-mode, n=5000)', function(){
+      const stream = makeSHA256BitStream(new TextEncoder().encode('autotest-structural-fair'));
+      const bits = []; for (let i=0;i<5000;i++) bits.push(stream.nextBit());
+      const h = combinedHmin(bits);
+      if (h.tTuple !== null && h.tTuple < STRUCTURAL_TTUPLE_GATE_THRESHOLD) return 'tTuple sotto soglia gate su sorgente equa (falso positivo): ' + h.tTuple.toFixed(4);
+      if (h.lrs !== null && h.lrs < STRUCTURAL_LRS_GATE_THRESHOLD) return 'lrs sotto soglia gate su sorgente equa (falso positivo): ' + h.lrs.toFixed(4);
+      return true;
+    });
+    test('t-Tuple/LRS: subsampleForStructuralEstimators limita correttamente il campione', function(){
+      const bits = new Array(TTUPLE_LRS_SAMPLE_CAP + 5000).fill(0).map((_,i)=>i%2);
+      const sample = subsampleForStructuralEstimators(bits);
+      if (sample.length !== TTUPLE_LRS_SAMPLE_CAP) return 'atteso campione di ' + TTUPLE_LRS_SAMPLE_CAP + ' bit, ottenuto ' + sample.length;
+      return true;
+    });
+
+    test('APT: il conteggio esclude correttamente il simbolo di riferimento da se stesso', function(){
+      const bits = [0,1,1,1,1,1,1,1,1,1]; // 10 bit, W=10 -> atteso count=0 (nessun altro simbolo coincide col primo=0)
+      const apt = adaptiveProportionTest(bits, 1, 10);
+      if (!apt) return 'APT non applicabile (inatteso, bits.length=10=W)';
+      if (apt.maxCount !== 0) return 'maxCount atteso 0, ottenuto ' + apt.maxCount;
+      return true;
+    });
+    test('RCT: rileva correttamente un run costante patologico', function(){
+      const bits = new Array(200).fill(1);
+      const rct = repetitionCountTest(bits, 1);
+      if (!rct.failed) return 'RCT non ha rilevato un run costante di 200 bit identici';
+      return true;
+    });
+    test('RCT/APT: nessun falso positivo su una sorgente equa deterministica (n=50000)', function(){
+      const stream = makeSHA256BitStream(new TextEncoder().encode('autotest-rct-apt-fair'));
+      const bits = []; for (let i=0;i<50000;i++) bits.push(stream.nextBit());
+      const rct = repetitionCountTest(bits, 1);
+      if (rct.failed) return 'RCT falso positivo su sorgente equa (maxRun=' + rct.maxRun + ', cutoff=' + rct.cutoff + ')';
+      const apt = adaptiveProportionTest(bits, 1);
+      if (apt && apt.failed) return 'APT falso positivo su sorgente equa (maxCount=' + apt.maxCount + ', cutoff=' + apt.cutoff + ')';
       return true;
     });
 

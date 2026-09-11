@@ -7,7 +7,9 @@ selezionando automaticamente quella migliore e statisticamente indipendente.
 
 Pipeline: **estrazione LSB + filtro saturazione/silenzio → debiasing Peres (1992,
 versione completa) → Toeplitz Hashing (GF(2)) → stime di min-entropia (MCV +
-Collision, Clopper-Pearson 99%) → 4 test NIST SP 800-22 → SHA-256 finale opzionale**.
+Collision, Clopper-Pearson 99%) + gate strutturale dedicato (t-Tuple + LRS) + health
+test retrospettivi (RCT + APT, SP 800-90B §4.4) → 4 test NIST SP 800-22 → SHA-256 o
+SHAKE256 finale opzionale**.
 
 Nessuna dipendenza esterna, nessuna chiamata di rete: tutto avviene in RAM nel browser.
 
@@ -49,8 +51,11 @@ matematiche sono documentati direttamente nella pagina, nel pannello
   caricato dall'utente.
 - In modalità rigorosa (default) non espande mai l'output oltre i bit realmente
   estratti da Toeplitz.
-- Non sostituisce l'intera batteria SP 800-90B/800-22: implementa 2 stimatori di
-  min-entropia (MCV, Collision) e 4 dei 15 test NIST SP 800-22, dichiarati come tali.
+- Non sostituisce l'intera batteria SP 800-90B/800-22: implementa 4 stimatori di
+  min-entropia (MCV, Collision, t-Tuple, LRS), 2 health test retrospettivi (RCT, APT)
+  e 4 dei 15 test NIST SP 800-22, dichiarati come tali. t-Tuple/LRS operano su un
+  campione limitato ai primi 20.000 bit per finestra e fungono da gate dedicato,
+  senza incidere sul rapporto di estrazione Toeplitz (vedi CHANGELOG v3 per il perché).
 
 ## Requisiti
 

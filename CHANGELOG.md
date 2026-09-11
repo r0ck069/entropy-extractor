@@ -1,5 +1,62 @@
 # Changelog
 
+## v3 — Portati SHAKE256, t-Tuple/LRS, RCT/APT da EntropyPipeline (2026-09-11)
+
+Portati da `EntropyPipeline` (stesso autore, stesso repository owner), lo strumento
+"manuale" con incolla-bit da cui questo tool eredita il motore matematico di base:
+quattro elementi che lì esistevano ma qui mancavano.
+
+- **SHAKE256** (Keccak-f[1600] puro JS, funzione XOF a lunghezza variabile):
+  `crypto.subtle` del browser non lo implementa nativamente. Verificato contro i
+  vettori di test ufficiali NIST prima dell'integrazione. Aggiunto un pulsante
+  opzionale accanto al digest SHA-256 sulla finestra vincente, a parità di
+  lunghezza di output.
+- **t-Tuple e Longest Repeated Substring (LRS)** (SP 800-90B §6.3): stimatori di
+  min-entropia di ordine superiore, capaci di rilevare strutture periodiche/ripetute
+  che MCV e Collision (statistiche di ordine 0/1) non vedono per costruzione.
+- **Repetition Count Test (RCT) e Adaptive Proportion Test (APT)** (SP 800-90B §4.4):
+  health test retrospettivi applicati ai bit LSB grezzi di ciascuna finestra, prima
+  del debiasing di Peres.
+
+Tre adattamenti espliciti, resi necessari dal contesto diverso (flussi automatici di
+centinaia di migliaia di bit per finestra, contro le centinaia/migliaia di bit
+incollati a mano della sorgente originale):
+
+1. **t-Tuple/LRS limitati a un campione di 20.000 bit per finestra**
+   (`TTUPLE_LRS_SAMPLE_CAP`), per restare entro un tempo di calcolo ragionevole.
+2. **Bug di scalabilità reale trovato e corretto durante il porting**: né t-Tuple né
+   LRS, nella sorgente originale, limitano la lunghezza massima di pattern esaminata.
+   Su una sequenza periodica il costo può esplodere a diversi miliardi di operazioni —
+   riprodotto: il porting iniziale ha bloccato la pipeline di test per minuti su un
+   singolo caso periodico. Corretto con due limiti (`TTUPLE_MAX_T=64`,
+   `LRS_MAX_SEARCH_LEN=256`), verificati non alterare il comportamento su rumore
+   reale né la rilevazione su sequenze periodiche/strutturate. **Lo stesso bug è stato
+   poi trovato e corretto anche in EntropyPipeline stesso** — vedi il CHANGELOG di
+   quel repository.
+3. **t-Tuple/LRS non entrano nel calcolo della min-entropia che determina il rapporto
+   di estrazione Toeplitz** (a differenza della sorgente originale). Scoperto
+   empiricamente durante il testing: su campioni di decine di migliaia di bit, LRS in
+   particolare resta strutturalmente intorno a 0.35-0.43 bit/bit anche su rumore
+   CSPRNG perfettamente equo (natura conservativa nota del limite di confidenza di
+   Clopper-Pearson su un conteggio quasi sempre minimo, non un segnale reale di scarsa
+   entropia). Includerlo nel minimo avrebbe dimezzato il rapporto di estrazione
+   pratico su ogni analisi, anche perfettamente sana. Restano invece un **gate
+   strutturale dedicato** (soglie calibrate con ampio margine empirico: sorgenti
+   sane/moderatamente sbilanciate osservate a LRS≥0.21, t-Tuple≥0.29; sorgenti
+   periodiche/strutturate osservate a LRS≤0.015, t-Tuple≤0.05).
+
+RCT/APT sono invece applicati senza campionamento (costo O(n)) come gate aggiuntivo
+per finestra, con la stessa priorità "il più pessimista vince" degli altri gate.
+
+Verificato con una suite di test end-to-end in Node.js prima del rilascio: unit test
+sui singoli stimatori, l'intera suite di autotest della pagina, e simulazioni complete
+della pipeline con sorgenti sintetiche sane e patologiche (run costante localizzato,
+struttura periodica non costante) — eseguita ripetutamente senza flakiness, nessuna
+eccezione, nessun blocco. Durante questo testing sono stati trovati e corretti, oltre
+al bug di scalabilità sopra, un refuso di trascrizione nel vettore di test SHAKE256
+(un carattere mancante — verificato e corretto contro l'implementazione nativa
+OpenSSL/Node) e due soglie di autotest inizialmente mal calibrate.
+
 ## v2 — Audit matematico + correzioni reali + restyle (2026-09-10)
 
 Prima di qualunque modifica estetica è stata condotta una verifica matematica
