@@ -1,7 +1,7 @@
 # Entropy Extractor — Multi-Finestra (Versione Unificata)
 
 Strumento standalone, offline, a singolo file HTML per estrarre entropia crittografica
-da una sorgente grezza unica (dump audio RAW/PCM, video, dump di un TRNG hardware),
+da una sorgente grezza unica (dump audio RAW/PCM, video, dump di un TRNG hardware, csv),
 analizzandola in **4 finestre** (Primaria / Mediana / Terminale / Spettro Totale) e
 selezionando automaticamente quella migliore e statisticamente indipendente.
 
