@@ -1,6 +1,6 @@
 # Entropy Extractor — Multi-Finestra (Versione Unificata)
 
-> ⚠ **v4.0.0-beta2 — BETA non ancora pubblicata su GitHub.** Contiene funzionalità
+> ⚠ **v4.0.0-beta2 — BETA  pubblicata su GitHub.** Contiene funzionalità
 > nuove non ancora sottoposte ad audit indipendente da terzi (sono però state
 > verificate con una suite di test rigorosa e reale — vedi `CHANGELOG.md`). Vedi
 > `SECURITY-NOTES.md` per i principi di design. Non usare per nulla che conti
