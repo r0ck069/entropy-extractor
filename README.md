@@ -99,20 +99,19 @@ MIT — vedi `LICENSE`.
 APP consigliate per la raccolta dei campioni da processare: RØDE Reporter, sensor logger,
 registratore Audio di Hardcoded Joy, RecForge II.
 
-Uno o due telefoni cellulari, una macchina fotografica che abbia la possibilità di
-salvare le foto in RAW, una o meglio due radio FM economiche a batterie, un dado in
-buone condizioni, una moneta possibilmente in buone condizioni e bilanciata (da 2
-euro esce certificata dalla Zecca di Stato), 8 numeri della tombola, un file zip
-autocreato offline di qualche mega e poi distrutto.
+Uno o due telefoni cellulari, una macchina fotografica che abbia la possibilità di salvare
+le foto in RAW, una o meglio due radio FM economiche a batterie, un dado in buone condizioni,
+una moneta possibilmente in buone condizioni e bilanciata (da 2 euro esce certificata dalla
+Zecca di Stato), 8 numeri della tombola, un file zip autocreato offline di qualche mega e
+poi distrutto.Con il microfono del telefono ed escludendo i filtri in ingresso, raw, mono 
+(queste app lo fanno), già due o più minuti di audio in un bar frequentato o in una mensa
+genera un audio con tanto materiale difficilmente prevedibile, buono da estrarre. O anche
+il campionamento dal sensore del giroscopio o magnetometro o accelerometro in una strada con
+buche e dossi, può esserci imprevedibilità nei bit estratti — l'assistente CSV/sensore di
+questa build è pensato proprio per questo caso d'uso. L'importante è prendere sorgenti
+grezze campionate che fra loro non abbiano correlazioni apparenti: il segnale audio di due
+radio FM a batterie sintonizzate fuori frequenza, una foto completamente nera fatta in raw
+tappando l'obiettivo, un giroscopio e il rumore in un bar o una mensa affollata hanno ben
+poco in comune. Basta che una sola tra le sorgenti scelte abbia "qualità entropica", meglio
+se presi in autonomia con 2 telefoni diversi ed una reflex.
 
-Con il microfono del telefono ed escludendo i filtri in ingresso, raw, mono
-(possibilmente queste app lo fanno), già due o più minuti di audio in un bar
-frequentato o in una mensa genera un audio con tanto materiale difficilmente
-prevedibile, buono da estrarre. O anche il campionamento dal sensore del
-giroscopio o magnetometro o accelerometro in una strada con buche e dossi, può
-esserci imprevedibilità nei bit estratti. L'importante è prendere sorgenti grezze
-campionate che fra loro non abbiano correlazioni apparenti: il segnale audio di
-due radio FM a batterie sintonizzate fuori frequenza, due foto completamente nere
-fatte in raw tappando l'obiettivo, il giroscopio del telefono ed il rumore in un
-bar o una mensa affollata hanno ben poco in comune. Basta che una sola tra le
-sorgenti scelte abbia "qualità entropica".
