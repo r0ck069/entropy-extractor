@@ -1346,8 +1346,8 @@
       const rct = repetitionCountTest(fusedLsbBits, sourceEnt.hMin);
       const apt = adaptiveProportionTest(fusedLsbBits, sourceEnt.hMin);
 
-      const preEntropy = combinedHmin(fusedPeresBits);
-      const preConditioningPoolBits = fusedPeresBits.length;
+      const preEntropy = sourceEnt; // FIX: entropia stimata PRIMA di Peres, non dopo (bug audit indipendente 26/09/2026)
+      const preConditioningPoolBits = fusedLsbBits.length; // FIX: bit grezzi, coerente con preEntropy calcolata su sourceEnt (audit 26/09/2026)
       const totalMinEntropyBits = isFinite(preEntropy.hMin) ? preEntropy.hMin * preConditioningPoolBits : 0;
       const lhlSafeOutputBits = Math.max(0, Math.floor(totalMinEntropyBits - lhlSecurityMargin));
       const ratioPractical = isFinite(preEntropy.hMin) ? preEntropy.hMin * PRACTICAL_SAFETY_FACTOR : 0;
@@ -1464,8 +1464,8 @@
       }
 
       // --- Stima min-entropia PRIMA del condizionamento Toeplitz (quella che conta) ---
-      const preEntropy = combinedHmin(peresRes.bits);
-      const preConditioningPoolBits = peresRes.bits.length;
+      const preEntropy = sourceEnt; // FIX: entropia stimata PRIMA di Peres, non dopo (bug audit indipendente 26/09/2026)
+      const preConditioningPoolBits = lsbRes.bits.length; // FIX: bit grezzi, coerente con preEntropy calcolata su sourceEnt (audit 26/09/2026)
       const totalMinEntropyBits = isFinite(preEntropy.hMin) ? preEntropy.hMin * preConditioningPoolBits : 0;
       const lhlSafeOutputBits = Math.max(0, Math.floor(totalMinEntropyBits - lhlSecurityMargin));
       const ratioPractical = isFinite(preEntropy.hMin) ? preEntropy.hMin * PRACTICAL_SAFETY_FACTOR : 0;
