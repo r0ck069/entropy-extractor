@@ -1126,7 +1126,7 @@
     const n = bits.length;
     if (n < 40) return null;
     const u = longestRepeatedSubstringLen(bits);
-    const W = u+1;
+    const W = u;
     if (W < 1 || W > n) return null;
     const counts = {};
     for (let i=0;i<=n-W;i++){ const key = bits.slice(i,i+W).join(''); counts[key] = (counts[key]||0)+1; }
