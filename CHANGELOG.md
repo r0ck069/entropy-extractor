@@ -1,4 +1,29 @@
 # Changelog
+## v4.0.0-beta3 (2026-09-27) — correzioni dall'audit indipendente
+
+**SHA-256 di `entropy-extractor-unified.html` di questa build:** `f2f672493bbf13c2fda05e5d635cfa831a20da5ed998c5187f9edec98788039a` (stato al commit 6895f05, calcolato con `sha256sum` sul Raspberry Pi il 28/09/2026)
+
+### Correzione — stima dell'entropia dopo Peres invece che prima (2026-09-26)
+
+**Bug.** `preEntropy` veniva calcolata sui bit già passati dall'estrattore di Peres (`peresRes.bits`) invece che sui bit grezzi. Peres rimuove il bias ma non la correlazione tra bit: su una sorgente correlata l'entropia misurata dopo Peres appare vicina a 1 bit/bit anche quando quella vera è molto più bassa. Il tool accreditava quindi più bit di output di quanti la Leftover Hash Lemma ne consenta. Era l'unico dei bug dell'audit in direzione insicura.
+
+**Correzione.** `preEntropy = sourceEnt`, cioè l'entropia stimata sui bit grezzi, prima di Peres. Segnalato da un audit indipendente.
+
+**Verifica.** `extractor_check.js` (aggiunto come test di regressione), sorgente sintetica con correlazione al 90%: entropia vera 93.799 bit. Prima del fix venivano accreditati 120.851 bit (+28,8%, sovrastima reale); dopo il fix 15.258 bit (prudente).
+
+**Commit:** `9023e8e`
+
+### Correzione — stimatore LRS: lunghezza sbagliata, conteggio sempre 1 (2026-09-27)
+
+**Bug.** In `lrsHmin()` la lunghezza di confronto era `W = u+1` invece di `W = u`. A quella lunghezza nessuna sottostringa può ripetersi per definizione, quindi il conteggio massimo era sempre esattamente 1, qualunque fossero i dati: la statistica non misurava nulla. Lo stesso bug era già stato corretto in `EntropyPipeline` (`56aedff`) ma non era stato propagato qui.
+
+**Correzione.** `W = u` (riga 1129 di `entropy-extractor-unified.html`).
+
+**Verifica.** `lrs_check.js` (aggiunto al repository): prima del fix il conteggio era sempre 1; dopo il fix `lrsHmin` restituisce valori calcolati dai dati (circa 0,26-0,45 bit/bit su rumore casuale, a seconda della lunghezza del campione).
+
+**Nota su una voce precedente.** La voce v3 (2026-09-11) attribuiva il valore di LRS intorno a 0,35-0,43 su rumore CSPRNG a una "natura conservativa" di Clopper-Pearson su un conteggio quasi sempre minimo. Con il senno di poi quel comportamento era il sintomo di questo bug. Le soglie del gate strutturale (LRS ≥ 0,21 su sorgenti sane, ≤ 0,015 su sorgenti periodiche) erano state calibrate con lo stimatore difettoso. Dopo il fix, su rumore casuale lo stimatore dà valori tra 0,36 e 0,47 (esecuzione di `lrs_check.js` sul Raspberry Pi, 28/09/2026), nello stesso intervallo riportato nella voce v3: la soglia per le sorgenti sane (≥ 0,21) mantiene quindi margine su dati casuali. [DA CONFERMARE: la soglia per le sorgenti periodiche (≤ 0,015) non è stata riverificata con lo stimatore corretto; finché non lo è, resta un punto aperto.]
+
+**Commit:** `6895f05`
 
 ## v4.0.0-beta2 (2026-09-13) — BETA, non ancora pubblicata su GitHub
 
