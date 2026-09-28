@@ -1,7 +1,7 @@
 # Changelog
-## v4.0.0-beta3 (2026-09-27) — correzioni dall'audit indipendente
+## v4.0.0-beta3 (2026-09-28) — correzioni dall'audit indipendente
 
-**SHA-256 di `entropy-extractor-unified.html` di questa build:** `f2f672493bbf13c2fda05e5d635cfa831a20da5ed998c5187f9edec98788039a` (stato al commit 6895f05, calcolato con `sha256sum` sul Raspberry Pi il 28/09/2026)
+**SHA-256 di `entropy-extractor-unified.html` di questa build:** `af1f48fdb93db542cc26630cd1e52830a0b7a57bc194f66ac137968c6be8ff93` (calcolato con `sha256sum` sul Raspberry Pi il 28/09/2026, dopo il cambio di etichetta di build)
 
 ### Correzione — stima dell'entropia dopo Peres invece che prima (2026-09-26)
 
@@ -24,6 +24,10 @@
 **Nota su una voce precedente.** La voce v3 (2026-09-11) attribuiva il valore di LRS intorno a 0,35-0,43 su rumore CSPRNG a una "natura conservativa" di Clopper-Pearson su un conteggio quasi sempre minimo. Con il senno di poi quel comportamento era il sintomo di questo bug. Le soglie del gate strutturale (LRS ≥ 0,21 su sorgenti sane, ≤ 0,015 su sorgenti periodiche) erano state calibrate con lo stimatore difettoso. Dopo il fix, su rumore casuale lo stimatore dà valori tra 0,36 e 0,47 (esecuzione di `lrs_check.js` sul Raspberry Pi, 28/09/2026), nello stesso intervallo riportato nella voce v3: la soglia per le sorgenti sane (≥ 0,21) mantiene quindi margine su dati casuali. [DA CONFERMARE: la soglia per le sorgenti periodiche (≤ 0,015) non è stata riverificata con lo stimatore corretto; finché non lo è, resta un punto aperto.]
 
 **Commit:** `6895f05`
+
+### Aggiornamento dell'etichetta di build (2026-09-28)
+
+**Modifica.** La riga di intestazione della pagina diceva "Build 4.0.0-beta2 — BETA non ancora pubblicata su GitHub". La beta è già pubblicata su GitHub, e la pagina include ora le due correzioni sopra: l'etichetta è stata portata a "Build 4.0.0-beta3 — BETA". Nessun'altra riga della pagina è cambiata. Lo SHA-256 riportato in cima a questa voce si riferisce alla pagina con la nuova etichetta.
 
 ## v4.0.0-beta2 (2026-09-13) — BETA, non ancora pubblicata su GitHub
 
