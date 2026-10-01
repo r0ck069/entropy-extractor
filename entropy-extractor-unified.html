@@ -98,7 +98,7 @@
 <body>
 
 <h1>Pipeline di Estrazione Entropica Multi-Finestra — Versione Unificata</h1>
-<div class="subtitle">Build 4.0.0-beta3 — BETA. Motore: Peres + Toeplitz + Clopper-Pearson (MCV/Collision/t-Tuple/LRS) + RCT/APT. Test: 9/15 NIST SP 800-22. Digest: SHA-256 + SHAKE256 opzionale. Changelog completo: CHANGELOG.md.</div>
+<div class="subtitle">Build 4.0.0-beta4 — BETA. Motore: Peres + Toeplitz + Clopper-Pearson (MCV/Collision/t-Tuple/LRS) + RCT/APT. Test: 8/15 procedure NIST SP 800-22 (9 test). Digest: SHA-256 + SHAKE256 opzionale. Changelog completo: CHANGELOG.md.</div>
 
 <div class="doc-panel">
   <strong>DOCUMENTAZIONE ESSENZIALE</strong><br>
@@ -219,6 +219,20 @@
   // blockOutSize, non in sostituzione del calcolo esistente basato su
   // extractionRatio.
   const EMISSION_CAP_BLOCK_OUT = Math.floor(TOEPLITZ_IN / 2);
+
+  // [FIX 01/10/2026 — punto 22] Bound del Leftover Hash Lemma PER BLOCCO Toeplitz.
+  // Il Toeplitz qui è applicato a B blocchi indipendenti da TOEPLITZ_IN bit, ciascuno
+  // con la propria matrice: la garanzia del lemma vale per ogni blocco, non per il
+  // totale della finestra. Per un blocco con min-entropia t = TOEPLITZ_IN·h (h = stima
+  // prudente per bit) e m bit in uscita: distanza statistica ε_b ≤ ½·2^(−(t−m)/2).
+  // Per sommare i B blocchi (argomento ibrido, valido anche con chiavi a finestra
+  // scorrevole) serve ε_b = 2⁻ᵏ/B, cioè m ≤ t − 2·(k + log2 B). Ipotesi (non provate dal
+  // tool): ogni blocco ha min-entropia ≥ TOEPLITZ_IN·h anche condizionata ai blocchi
+  // precedenti; il seme è uniforme (qui è pseudocasuale: garanzia computazionale).
+  function lhlSafeBlockOutBits(hMinPerBit, blocks, epsK){
+    if (!isFinite(hMinPerBit) || hMinPerBit <= 0 || blocks < 1) return 0;
+    return Math.max(0, Math.floor(TOEPLITZ_IN * hMinPerBit - 2 * (epsK + Math.log2(blocks))));
+  }
 
   const fileInput = document.getElementById('fileInput');
   const seedInput = document.getElementById('seedInput');
@@ -1279,7 +1293,8 @@
     const skipFilter = alreadyRandomCheck.checked;
     const rigorous = rigorousModeCheck.checked;
 
-    // [NUOVO — feature 5] Margine di sicurezza LHL selezionabile (ε=2⁻ᵏ, margine=2k).
+    // [NUOVO — feature 5] Margine di sicurezza LHL selezionabile (ε=2⁻ᵏ complessivo sulla
+    // finestra; per blocco ε_b=2⁻ᵏ/B, vedi lhlSafeBlockOutBits — fix 01/10/2026).
     // k=40 resta il comportamento di default preesistente di questo tool (nessuna
     // modifica per chi non tocca il selettore). Scendere sotto k=40 richiede una
     // conferma esplicita, una sola volta per sessione — salire (margine più
@@ -1295,7 +1310,6 @@
       }
       reducedMarginConfirmed = true;
     }
-    const lhlSecurityMargin = 2 * epsK;
 
     const payload = cachedFileBuffer.length > headerOffset ? cachedFileBuffer.slice(headerOffset) : cachedFileBuffer.slice(0);
     if (payload.length < 64){
@@ -1349,9 +1363,12 @@
       const preEntropy = sourceEnt; // FIX: entropia stimata PRIMA di Peres, non dopo (bug audit indipendente 26/09/2026)
       const preConditioningPoolBits = fusedLsbBits.length; // FIX: bit grezzi, coerente con preEntropy calcolata su sourceEnt (audit 26/09/2026)
       const totalMinEntropyBits = isFinite(preEntropy.hMin) ? preEntropy.hMin * preConditioningPoolBits : 0;
-      const lhlSafeOutputBits = Math.max(0, Math.floor(totalMinEntropyBits - lhlSecurityMargin));
+      // [FIX 01/10/2026 — punto 22] bound LHL per blocco Toeplitz, con somma sui B blocchi (vedi lhlSafeBlockOutBits)
+      const toeplitzBlocks = Math.floor(fusedPeresBits.length / TOEPLITZ_IN);
+      const lhlSafeBlockOut = lhlSafeBlockOutBits(preEntropy.hMin, toeplitzBlocks, epsK);
+      const lhlSafeOutputBits = toeplitzBlocks * lhlSafeBlockOut;
       const ratioPractical = isFinite(preEntropy.hMin) ? preEntropy.hMin * PRACTICAL_SAFETY_FACTOR : 0;
-      const ratioFromLHL = preConditioningPoolBits > 0 ? (lhlSafeOutputBits / preConditioningPoolBits) : 0;
+      const ratioFromLHL = lhlSafeBlockOut / TOEPLITZ_IN;
       const extractionRatio = Math.max(0, Math.min(ratioPractical, ratioFromLHL, MAX_EXTRACTION_RATIO));
       const blockOutSize = Math.min(Math.floor(TOEPLITZ_IN * extractionRatio), EMISSION_CAP_BLOCK_OUT);
 
@@ -1467,9 +1484,12 @@
       const preEntropy = sourceEnt; // FIX: entropia stimata PRIMA di Peres, non dopo (bug audit indipendente 26/09/2026)
       const preConditioningPoolBits = lsbRes.bits.length; // FIX: bit grezzi, coerente con preEntropy calcolata su sourceEnt (audit 26/09/2026)
       const totalMinEntropyBits = isFinite(preEntropy.hMin) ? preEntropy.hMin * preConditioningPoolBits : 0;
-      const lhlSafeOutputBits = Math.max(0, Math.floor(totalMinEntropyBits - lhlSecurityMargin));
+      // [FIX 01/10/2026 — punto 22] bound LHL per blocco Toeplitz, con somma sui B blocchi (vedi lhlSafeBlockOutBits)
+      const toeplitzBlocks = Math.floor(peresRes.bits.length / TOEPLITZ_IN);
+      const lhlSafeBlockOut = lhlSafeBlockOutBits(preEntropy.hMin, toeplitzBlocks, epsK);
+      const lhlSafeOutputBits = toeplitzBlocks * lhlSafeBlockOut;
       const ratioPractical = isFinite(preEntropy.hMin) ? preEntropy.hMin * PRACTICAL_SAFETY_FACTOR : 0;
-      const ratioFromLHL = preConditioningPoolBits > 0 ? (lhlSafeOutputBits / preConditioningPoolBits) : 0;
+      const ratioFromLHL = lhlSafeBlockOut / TOEPLITZ_IN;
       const extractionRatio = Math.max(0, Math.min(ratioPractical, ratioFromLHL, MAX_EXTRACTION_RATIO));
       // [NUOVO] Tetto di emissione ⌊input/2⌋ per blocco, in aggiunta al rapporto
       // già calcolato sopra — rete di sicurezza indipendente dal bound LHL.

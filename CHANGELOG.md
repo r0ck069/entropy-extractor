@@ -1,4 +1,35 @@
 # Changelog
+
+## v4.0.0-beta4 (2026-10-01) — bound LHL per blocco Toeplitz e allineamento della documentazione
+
+**SHA-256 di `entropy-extractor-unified.html` di questa build:** `7202a48a99999e95399b1fd80801be97880c03267286e9edfcd09a1a257314ad` (calcolato con `sha256sum`)
+
+### Correzione — bound del Leftover Hash Lemma calcolato sul totale della finestra invece che per blocco (2026-10-01)
+
+**Bug.** Il margine 2k era sottratto una sola volta dalla min-entropia totale della finestra (h·n) e ne usciva un rapporto globale `ratioFromLHL`. Ma il Toeplitz è applicato a B blocchi da 512 bit (`TOEPLITZ_IN`), ciascuno con la propria matrice (chiavi a finestra scorrevole, sovrapposte), e la garanzia del lemma vale per blocco. Dove il rapporto di estrazione era deciso dal fattore pratico 0,85·h e non dal bound (h minore di circa 0,656, con 1 milione di bit grezzi, Peres al 90% e k=40) il margine per blocco era circa 0,15·512·h bit, cioè 23-51 bit per h tra 0,3 e 0,6, contro i circa 100 richiesti. L'errore totale garantito dal lemma era circa 2⁻² (h=0,3), 2⁻⁹,⁷ (h=0,5), 2⁻¹⁵,⁸ (h=0,6) invece di 2⁻⁴⁰. Il lemma è una condizione sufficiente: questo non dimostra che l'uscita fosse distinguibile dal casuale (su una sorgente i.i.d. con bias le uscite risultavano comunque praticamente imparziali), ma la garanzia dichiarata non valeva.
+
+**Correzione.** Nuova funzione `lhlSafeBlockOutBits(h, B, k)`: uscita per blocco al massimo 512·h − 2·(k + log₂B), con B = ⌊bit post-Peres / 512⌋; ε=2⁻ᵏ è l'errore totale sulla finestra e ε/B quello di ogni blocco (argomento ibrido, valido anche con chiavi sovrapposte). Applicata nei due punti di calcolo (flusso per finestra e card Fusione); `ratioFromLHL` è ora per blocco e `lhlSafeOutputBits` = B·uscita sicura per blocco. Fattore pratico 0,85, massimo 0,90 e tetto di 256 bit per blocco restano invariati. Effetto con 1 milione di bit grezzi, Peres al 90%, k=40: uscita per blocco h=0,3: 130 → 52; h=0,5: 217 → 154; h=0,6: 256 → 205; da h=0,7 in su resta 256 (tetto). Con la correzione l'errore totale garantito è ≤ 2⁻⁴¹ in tutti i casi con uscita > 0.
+
+**Verifica.** (1) `toeplitz_margin_check.js`, che esegue il codice reale della pagina: valori noti, casi limite e proprietà "errore totale garantito ≤ 2⁻ᵏ" su 20.000 combinazioni casuali di h, B e k: esito tutto OK; sul file della beta3 fallisce perché la funzione non esiste. (2) `lhl_exact_check.py`: distanza statistica esatta, mediata su tutte le chiavi, su famiglie Toeplitz piccole con la stessa indicizzazione del codice: per un blocco sempre ≤ ½·2^(−(t−m)/2) (21 casi, rapporto massimo 0,747); per due blocchi con chiave a finestra scorrevole sempre ≤ 2 volte l'errore di un blocco (15 casi, rapporto massimo 0,493). Non è una prova per le dimensioni reali (512 bit). (3) Autotest della pagina 19 su 19 prima e dopo; `lrs_check.js` e `extractor_check.js` invariati. Verifiche eseguite con Node.js e Python; non è stato eseguito un test manuale della pagina in un browser.
+
+**Ipotesi non verificate dal tool.** Ogni blocco ha min-entropia almeno 512·h anche condizionata ai blocchi precedenti; ai bit in ingresso al Toeplitz si attribuisce la min-entropia per bit h stimata sui bit grezzi (senza accreditare la compressione di Peres, non dimostrato per sorgenti non i.i.d.); il seme è pseudocasuale (SHA-256), garanzia computazionale; la confidenza al 99% dello stimatore aggiunge circa 0,01 non inclusi in ε. Dettaglio in `SECURITY-NOTES.md`, Principio 2.
+
+### Etichetta di build e conteggio dei test NIST (2026-10-01)
+
+**Modifica.** La riga di intestazione della pagina diceva "Build 4.0.0-beta3 — BETA ... Test: 9/15 NIST SP 800-22". Ora dice "Build 4.0.0-beta4 — BETA" e "Test: 8/15 procedure NIST SP 800-22 (9 test)": i test sono 9 (Monobit, Block Frequency, Runs, Longest Run, Serial, Approximate Entropy, Cumulative Sums diretto e inverso, Binary Matrix Rank) ma le procedure sono 8, perché le due Cumulative Sums sono una sola procedura; 8 più le 7 mancanti elencate nel README fanno 15. Nessun'altra riga di testo della pagina è cambiata oltre alla correzione sopra. I numeri di riga citati nelle voci precedenti si riferiscono alla build di quella voce: in questa build `W = u` è alla riga 1143.
+
+### Documentazione allineata (2026-10-01)
+
+- **README:** versione e build a v4.0.0-beta4; conteggio dei test NIST (8 procedure in 9 test); elenco completo dei file; descrizione del margine LHL (ε totale, ε/B per blocco); sezione "Audit matematico" riscritta (la logica core non è più "invariata rispetto alla v3": tre correzioni successive).
+- **AUDIT-NOTES:** nuovi punti 14, 15 e 16 (le tre correzioni dopo la v3); note sui punti 12 e 13; tolta la dicitura "prima di un rilascio pubblico" (il repository è pubblico come BETA).
+- **SECURITY-NOTES:** Principio 2 riscritto (i quattro limiti dell'uscita per blocco e le ipotesi del bound); stato di audit aggiornato.
+- **CHANGELOG:** note storiche sulle voci beta1 e beta2 ("non ancora pubblicata" riferito alla data della voce), sul conteggio delle procedure della beta2, sulla descrizione del margine LHL della beta2 e sulla contabilità del bound LHL della v2.
+- **Nella sezione "Per la raccolta delle sorgenti" del README (testo dell'autore) è stata corretta una sola frase, con l'assenso dell'autore (2026-10-01):** "l'assistente CSV/sensore di questa build" → "l'assistente CSV/sensore di EntropyPipeline (non incluso in questo strumento)", perché in questo strumento l'assistente non è stato portato (voce v4.0.0-beta1, sezione "Non portate da EntropyPipeline") e la pagina non lo contiene. Il resto della sezione, e la riga 10 del README (elenco delle sorgenti grezze), non sono stati modificati (da rivedere a parte).
+
+### File aggiunti
+
+`toeplitz_margin_check.js` e `lhl_exact_check.py` (vedi sopra).
+
 ## v4.0.0-beta3 (2026-09-28) — correzioni dall'audit indipendente
 
 **SHA-256 di `entropy-extractor-unified.html` di questa build:** `af1f48fdb93db542cc26630cd1e52830a0b7a57bc194f66ac137968c6be8ff93` (calcolato con `sha256sum` sul Raspberry Pi il 28/09/2026, dopo il cambio di etichetta di build)
@@ -31,11 +62,15 @@
 
 ## v4.0.0-beta2 (2026-09-13) — BETA, non ancora pubblicata su GitHub
 
+> *Nota storica (2026-10-01): lo stato "non ancora pubblicata" e il giudizio "da verificare e auditare prima del rilascio pubblico" si riferiscono al 2026-09-13; il repository è ora pubblico come BETA (vedi voce v4.0.0-beta3).*
+
 **Stato: da verificare e auditare prima del rilascio pubblico.** SHA-256 del file
 `entropy-extractor-unified.html` di questa build:
 `911cdf114b8620301ae8bc815c39c3fd74911af1d65e4ecda4e760c700473964`.
 
 ### Batteria NIST SP 800-22 estesa da 4 a 9 procedure
+
+> *Nota (2026-10-01): le procedure sono 8 (4 già presenti più 4 nuove; Cumulative Sums diretto e inverso sono una sola procedura), eseguite in 9 test.*
 
 Aggiunti 4 test, adottati da un'analisi di terze parti dopo verifica matematica
 indipendente completa (stesso processo già applicato a EntropyPipeline, v2.0.0-beta2):
@@ -67,6 +102,8 @@ Linear Complexity, Maurer's Universal, Template Matching (×2), Random Excursion
 (×2) — non sottoposte allo stesso livello di verifica in questa iterazione.
 
 ### Margine di sicurezza LHL selezionabile (ε=2⁻ᵏ)
+
+> *Nota (2026-10-01): dalla v4.0.0-beta4 ε è l'errore totale sull'uscita della finestra e il bound `ratioFromLHL` è calcolato per blocco Toeplitz (uscita per blocco ≤ 512·h − 2·(k + log₂B)); la descrizione che segue è quella della beta2.*
 
 Prima fisso a ε=2⁻⁴⁰ (`LHL_EPSILON_BITS=40`, mai esposto all'utente). Ora
 selezionabile fra 2⁻¹⁶/2⁻²⁰/2⁻⁴⁰/2⁻⁶⁴/2⁻⁸⁰, con **k=40 mantenuto come default**
@@ -110,6 +147,8 @@ qui: una sola sorgente file per finestra).
 ---
 
 ## v4.0.0-beta1 (2026-09-13) — BETA, non ancora pubblicata su GitHub
+
+> *Nota storica (2026-10-01): lo stato "non ancora pubblicata" e il giudizio "da verificare e auditare prima del rilascio pubblico" si riferiscono al 2026-09-13; il repository è ora pubblico come BETA (vedi voce v4.0.0-beta3).*
 
 **Stato: da verificare e auditare prima del rilascio pubblico.** SHA-256 del file
 `entropy-extractor-unified.html` di questa build: `9a51dd2695a541a50041a7738c243a8d500536e6de8dbc06037b2147657fc9e3`.
@@ -279,6 +318,7 @@ correttamente).
 - **Contabilità del bound LHL**: verificato algebricamente che il margine
 residuo non può mai diventare negativo, e confermato su 300 simulazioni
 casuali — margine minimo osservato: +45 bit, mai negativo.
+  *(Nota 2026-10-01: riferito alla contabilità globale di allora. Dalla v4.0.0-beta4 il margine residuo è B·(uscita sicura per blocco − uscita per blocco) e resta non negativo perché l'uscita per blocco non supera mai quella sicura.)*
 
 ### Bug reali trovati e corretti
 
